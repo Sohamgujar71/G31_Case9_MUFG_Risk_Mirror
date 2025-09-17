@@ -1,0 +1,14 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+xgboost
+flask
+uvicorn
+fastapi
+langchain
+pinecone-client
+google-generativeai
+huggingface_hub
+imbalanced-learn   # for SMOTE
+python-dotenv
