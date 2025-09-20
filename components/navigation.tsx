@@ -43,8 +43,8 @@ export default function Navigation() {
         <div className="flex items-center gap-3 relative">
           {!user ? (
             <>
-              {["AI Assistant", "About", "Rewards", "Login / Sign Up"].map((item, i) => {
-                const hrefs = ["/ai-assistant", "/about", "/rewards", "/auth"];
+              {["AI Assistant", "About", "Goal Tracker", "Rewards", "Login / Sign Up"].map((item, i) => {
+                const hrefs = ["/ai-assistant", "/about", "/goal-tracker", "/rewards", "/auth"];
                 return (
                   <motion.div
                     key={i}
@@ -64,6 +64,7 @@ export default function Navigation() {
               {[
                 { label: "AI Assistant", href: "/ai-assistant" },
                 { label: "About", href: "/about" },
+                { label: "Goal Tracker", href: "/goal-tracker" },
                 { label: "Rewards", href: "/rewards" },
               ].map((link, i) => (
                 <motion.div
