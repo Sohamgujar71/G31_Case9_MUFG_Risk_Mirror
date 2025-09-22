@@ -181,7 +181,7 @@ export default function RewardsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-gray-900 dark:to-indigo-950">
       {/* Wallet */}
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
@@ -190,7 +190,7 @@ export default function RewardsPage() {
       >
         <Button
           onClick={handleRedeem}
-          className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-6 py-3 rounded-2xl shadow-xl font-bold text-lg flex items-center gap-2"
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-4 rounded-2xl shadow-2xl font-bold text-lg flex items-center gap-3 border-0 backdrop-blur-sm hover:scale-105 transition-all duration-300"
         >
           <Coins className="h-6 w-6" />
           MIRO Coins: {coins}
@@ -229,27 +229,37 @@ export default function RewardsPage() {
               initial={{ scale: 0.9, y: -20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: -20 }}
-              className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-6">
                 <div className="flex-shrink-0">
-                  <img 
-                    src="/MIRO.png" 
-                    alt="Miro Avatar" 
-                    className="w-24 h-24 rounded-full border-4 border-blue-500"
-                  />
+                  <div className="relative">
+                    <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full p-1 shadow-lg">
+                      <img 
+                        src="/MIRO.png" 
+                        alt="Miro Avatar" 
+                        className="w-full h-full rounded-full object-cover bg-white p-1"
+                      />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">?</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">
-                    {currentQuestion?.q}
-                  </h3>
+                  <div className="mb-4">
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">
+                      {currentQuestion?.q}
+                    </h3>
+                    <div className="w-12 h-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full" />
+                  </div>
                   <div className="space-y-3">
                     {currentQuestion?.options.map((option, index) => (
                       <button
                         key={index}
                         onClick={() => handleAnswer(index)}
-                        className={`w-full p-4 text-left border-2 rounded-xl transition-all hover:bg-gray-50 ${getAnswerClass(index)}`}
+                        className={`w-full p-4 text-left border-2 rounded-xl transition-all duration-200 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:border-indigo-300 hover:scale-[1.02] hover:shadow-md font-medium ${getAnswerClass(index)}`}
                       >
                         {option}
                       </button>
@@ -257,7 +267,7 @@ export default function RewardsPage() {
                   </div>
                   <Button
                     onClick={() => setShowQuiz(false)}
-                    className="mt-6 w-full bg-blue-500 hover:bg-blue-600"
+                    className="mt-8 w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                   >
                     Close
                   </Button>
@@ -312,64 +322,98 @@ export default function RewardsPage() {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-            MIRO Rewards
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Answer questions to earn coins and redeem exciting rewards!
-          </p>
+        <div className="text-center mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4 tracking-tight">
+              MIRO Rewards
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed max-w-2xl mx-auto">
+              Answer financial questions correctly to earn coins and redeem exciting rewards!
+            </p>
+          </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="text-center p-6">
-            <CardHeader>
-              <Coins className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-              <CardTitle>Earn Coins</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Answer financial questions correctly to earn 5 MIRO coins per question.
-              </p>
-              <Button onClick={showRandomQuiz} className="w-full">
-                Take Quiz Now
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="h-full"
+          >
+            <Card className="h-full flex flex-col text-center p-8 border-0 shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 bg-gradient-to-br from-white to-yellow-50/50 dark:from-gray-800 dark:to-yellow-900/10">
+              <CardHeader className="pb-4">
+                <div className="p-4 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl w-fit mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <Coins className="h-12 w-12 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-200">Earn Coins</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                  Answer financial questions correctly to earn 5 MIRO coins per question.
+                </p>
+                <Button 
+                  onClick={showRandomQuiz} 
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                >
+                  Take Quiz Now
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-          <Card className="text-center p-6">
-            <CardHeader>
-              <Gift className="h-12 w-12 text-purple-500 mx-auto mb-4" />
-              <CardTitle>Redeem Rewards</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Use your coins to scratch cards and reveal amazing rewards and offers.
-              </p>
-              <Button 
-                onClick={handleRedeem} 
-                className="w-full"
-                disabled={coins < 10}
-              >
-                Redeem (10 coins)
-              </Button>
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="h-full"
+          >
+            <Card className="h-full flex flex-col text-center p-8 border-0 shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-800 dark:to-purple-900/10">
+              <CardHeader className="pb-4">
+                <div className="p-4 bg-purple-100 dark:bg-purple-900/30 rounded-xl w-fit mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <Gift className="h-12 w-12 text-purple-600 dark:text-purple-400" />
+                </div>
+                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-200">Redeem Rewards</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                  Use your coins to scratch cards and reveal amazing rewards and offers.
+                </p>
+                <Button 
+                  onClick={handleRedeem} 
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:hover:scale-100"
+                  disabled={coins < 10}
+                >
+                  Redeem (10 coins)
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-          <Card className="text-center p-6">
-            <CardHeader>
-              <div className="text-4xl mb-4"></div>
-              <CardTitle>Your Progress</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                You have earned <span className="font-bold text-yellow-600">{coins}</span> MIRO coins so far!
-              </p>
-              <div className="text-sm text-gray-500">
-                Keep learning to earn more rewards!
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="h-full"
+          >
+            <Card className="h-full flex flex-col text-center p-8 border-0 shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 bg-gradient-to-br from-white to-indigo-50/50 dark:from-gray-800 dark:to-indigo-900/10">
+              <CardHeader className="pb-4">
+                <div className="p-4 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl w-fit mx-auto mb-4"><span className="text-5xl leading-none">📊</span></div>
+                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-200">Your Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 dark:text-gray-400 mb-4 text-lg leading-relaxed">
+                  You have earned <span className="font-bold text-yellow-600 dark:text-yellow-400 text-2xl">{coins}</span> MIRO coins so far!
+                </p>
+                <div className="text-sm text-gray-500 dark:text-gray-400 bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg">
+                  Keep learning to earn more rewards!
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
       </div>
     </div>

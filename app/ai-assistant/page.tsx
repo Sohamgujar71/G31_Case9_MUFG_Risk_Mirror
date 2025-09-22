@@ -27,19 +27,19 @@ export default function AIAssistantPage() {
 
   const [hasDashboardData, setHasDashboardData] = useState(false)
 
-  const getInitialPrompt = (hasData: boolean) => {
+  const getInitialPrompt = (hasData: boolean, scores?: any) => {
     if (!hasData) {
       return "Hello! I'm your AI Risk Advisor. To provide personalized advice, please complete the Finance and Health Risk Assessment forms first. Once you've submitted both forms, I'll be able to analyze your data and provide tailored recommendations."
     }
 
-    return riskScore
-      ? `Hello! I'm your AI Risk Advisor. Here are your current scores:
-- Total Risk Score: ${riskScore}
-- Financial Score: ${financial}
-- Health Score: ${health}
-- Time Horizon Score: ${time}
+    // Prefer dashboard-calculated scores if available
+    if (scores) {
+      return `Hello! I'm your AI Risk Advisor. Here are your current scores from your dashboard:\n- Overall Risk Score: ${scores.overallRiskScore}\n- Financial Score: ${scores.financeScore}\n- Health Score: ${scores.healthScore}\n- Time Horizon Score: ${scores.timeHorizonScore}\n\nAsk me anything about your risks or how to improve these numbers.`
+    }
 
-I can provide advice and suggestions based on these scores.`
+    // Fallback to legacy query params
+    return riskScore
+      ? `Hello! I'm your AI Risk Advisor. Here are your current scores:\n- Total Risk Score: ${riskScore}\n- Financial Score: ${financial}\n- Health Score: ${health}\n- Time Horizon Score: ${time}\n\nI can provide advice and suggestions based on these scores.`
       : "Hello! I'm your AI Risk Advisor. I have your risk assessment data and can provide personalized advice based on your financial and health information."
   }
 
@@ -194,10 +194,17 @@ I can provide advice and suggestions based on these scores.`
   const clearChatHistory = () => {
     if (confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
       const hasData = checkDashboardData()
+      // Get dashboard calculated scores if available
+      let parsedScores: any = null
+      try {
+        const stored = localStorage.getItem("dashboardCalculatedScores")
+        if (stored) parsedScores = JSON.parse(stored)
+      } catch {}
+      
       const welcomeMessage = { 
         id: "welcome", 
         type: "assistant" as const, 
-        content: getInitialPrompt(hasData), 
+        content: getInitialPrompt(hasData, parsedScores), 
         timestamp: new Date() 
       }
       setMessages([welcomeMessage])
@@ -224,6 +231,11 @@ I can provide advice and suggestions based on these scores.`
       const hasHealthForm = parsedData?.healthForm && 
         typeof parsedData.healthForm === 'object' && 
         Object.keys(parsedData.healthForm).length > 0
+      
+      const hasBasicDetails = parsedData?.basicDetails && /*<-*/
+        typeof parsedData.basicDetails === 'object' && /*<-*/
+        parsedData.basicDetails.age && /*<-*/
+        parsedData.basicDetails.gender /*<-*/
 
       // Also check for results (optional, as they might be calculated on dashboard)
       const hasFinanceResult = parsedData?.financeResult && 
@@ -235,12 +247,13 @@ I can provide advice and suggestions based on these scores.`
       console.log("Data validation:", {
         hasFinanceForm,
         hasHealthForm,
+        hasBasicDetails, /*<-*/
         hasFinanceResult,
         hasHealthResult
       })
 
-      // Return true if we have both form data OR both result data
-      const hasCompleteData = (hasFinanceForm && hasHealthForm) || (hasFinanceResult && hasHealthResult)
+      // Return true if we have both form data (with basic details preferred) OR both result data
+      const hasCompleteData = (hasFinanceForm && hasHealthForm) || (hasFinanceResult && hasHealthResult) /*<-*/
       
       console.log("Has complete data:", hasCompleteData)
       return hasCompleteData
@@ -256,6 +269,13 @@ I can provide advice and suggestions based on these scores.`
     console.log("useEffect - hasData:", hasData)
     setHasDashboardData(hasData)
 
+    // Pull latest dashboard-calculated scores if present
+    let parsedScores: any = null
+    try {
+      const stored = localStorage.getItem("dashboardCalculatedScores")
+      if (stored) parsedScores = JSON.parse(stored)
+    } catch {}
+
     const savedHistory = localStorage.getItem("chatHistory")
     if (savedHistory) {
       try {
@@ -268,10 +288,10 @@ I can provide advice and suggestions based on these scores.`
         )
       } catch (error) {
         console.error("Failed to load chat history:", error)
-        setMessages([{ id: "welcome", type: "assistant", content: getInitialPrompt(hasData), timestamp: new Date() }])
+        setMessages([{ id: "welcome", type: "assistant", content: getInitialPrompt(hasData, parsedScores), timestamp: new Date() }])
       }
     } else {
-      setMessages([{ id: "welcome", type: "assistant", content: getInitialPrompt(hasData), timestamp: new Date() }])
+      setMessages([{ id: "welcome", type: "assistant", content: getInitialPrompt(hasData, parsedScores), timestamp: new Date() }])
     }
   }, [riskScore, financial, health, time])
 
@@ -282,10 +302,16 @@ I can provide advice and suggestions based on these scores.`
       if (hasData !== hasDashboardData) {
         setHasDashboardData(hasData)
         // Update welcome message if data status changed
+        let parsedScores: any = null
+        try {
+          const stored = localStorage.getItem("dashboardCalculatedScores")
+          if (stored) parsedScores = JSON.parse(stored)
+        } catch {}
+
         setMessages(prev => {
           if (prev[0]?.id === "welcome") {
             return [
-              { id: "welcome", type: "assistant", content: getInitialPrompt(hasData), timestamp: new Date() },
+              { id: "welcome", type: "assistant", content: getInitialPrompt(hasData, parsedScores), timestamp: new Date() },
               ...prev.slice(1)
             ]
           }
@@ -341,33 +367,62 @@ I can provide advice and suggestions based on these scores.`
         }
       }
 
-      // Prepare data for API call - adapt to your actual data structure
+      // Get calculated scores from localStorage if available from dashboard session /*<-*/
+      const calculatedScores = localStorage.getItem("dashboardCalculatedScores") /*<-*/
+      let parsedScores = null /*<-*/
+      if (calculatedScores) { /*<-*/
+        try { /*<-*/
+          parsedScores = JSON.parse(calculatedScores) /*<-*/
+        } catch (error) { /*<-*/
+          console.warn("Failed to parse calculated scores:", error) /*<-*/
+        } /*<-*/
+      } /*<-*/
+
+      // Merge basic details into health form so age/male/education are never missing /*<-*/
+      let mergedHealthForm = parsedDashboardData?.healthForm || null /*<-*/
+      if (mergedHealthForm) { /*<-*/
+        const bd = parsedDashboardData?.basicDetails || {} /*<-*/
+        mergedHealthForm = {
+          ...mergedHealthForm,
+          age: typeof mergedHealthForm.age === 'number' && !isNaN(mergedHealthForm.age)
+            ? mergedHealthForm.age
+            : (bd.age !== undefined ? Number(bd.age) : 0),
+          male: typeof mergedHealthForm.male === 'number' && !isNaN(mergedHealthForm.male)
+            ? mergedHealthForm.male
+            : (bd.gender ? (bd.gender === 'Male' ? 1 : 0) : 0),
+          education: typeof mergedHealthForm.education === 'number' && !isNaN(mergedHealthForm.education)
+            ? mergedHealthForm.education
+            : (bd.education ? Number.parseInt(bd.education) : 0),
+        } as any /*<-*/
+      } /*<-*/
+
+      // Prepare data for API call - focus on current dashboard data only /*<-*/
       const apiPayload = {
         input: msg,
-        // Legacy fields for backward compatibility
-        health_risk: parsedDashboardData?.healthResult?.risk || 
-                     parsedDashboardData?.healthResult?.RiskRating || 
-                     "Unknown",
-        health_score: parsedDashboardData?.healthResult?.score || 
-                      parsedDashboardData?.healthResult?.probability || 
-                      0,
-        finance_risk: parsedDashboardData?.financeResult?.risk || 
-                      parsedDashboardData?.financeResult?.RiskRating || 
-                      "Unknown",
-        finance_score: parsedDashboardData?.financeResult?.score || 
-                       parsedDashboardData?.financeResult?.FSI || 
-                       0,
-        time_horizon_risk: parsedDashboardData?.timeHorizon?.risk || "Unknown",
-        time_horizon_score: parsedDashboardData?.timeHorizon?.score || 0,
-        // New structure - form data
+        // Current calculated scores from dashboard /*<-*/
+        health_score: parsedScores?.healthScore || 0, /*<-*/
+        finance_score: parsedScores?.financeScore || 0, /*<-*/
+        time_horizon_score: parsedScores?.timeHorizonScore || 0, /*<-*/
+        overall_risk_score: parsedScores?.overallRiskScore || 0, /*<-*/
+        // Classifications /*<-*/
+        health_classification: parsedScores?.healthClassification || "No Data", /*<-*/
+        finance_classification: parsedScores?.financeClassification || "No Data", /*<-*/
+        time_horizon_interpretation: parsedScores?.timeHorizonInterpretation || "No Data", /*<-*/
+        overall_risk_interpretation: parsedScores?.overallRiskInterpretation || "No Data", /*<-*/
+        // Form data for context /*<-*/
         finance_form: parsedDashboardData?.financeForm || null,
-        health_form: parsedDashboardData?.healthForm || null,
-        // Result data
-        finance_result: parsedDashboardData?.financeResult || null,
-        health_result: parsedDashboardData?.healthResult || null
+        health_form: mergedHealthForm, /*<-*/
+        basic_details: parsedDashboardData?.basicDetails || null, /*<-*/
+        // Legacy aliases to maximize backend compatibility
+        health_risk: parsedScores?.healthClassification || "No Data", /*<-*/
+        finance_risk: parsedScores?.financeClassification || "No Data", /*<-*/
+        time_horizon_risk: parsedScores?.timeHorizonInterpretation || "No Data", /*<-*/
       }
 
       console.log("Sending API payload:", apiPayload)
+      console.log("Dashboard calculated scores being sent:", parsedScores) /*<-*/
+      console.log("Basic details:", parsedDashboardData?.basicDetails) /*<-*/
+      console.log("Merged health form being sent:", mergedHealthForm) /*<-*/
 
       const response = await fetch("http://127.0.0.1:8080/ask", {
         method: "POST",

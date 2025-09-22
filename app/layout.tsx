@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh bg-background text-foreground antialiased">
+      <body className="min-h-dvh bg-background text-foreground antialiased" suppressHydrationWarning={true}>
         {/* Everything inside RootProviders is client-only */}
         <RootProviders>
           <Navbar />

@@ -226,18 +226,21 @@ export default function Page() {
       </div>
 
       {/* Mascot Section */}
-      <div className="max-w-4xl mx-auto flex flex-col items-center pt-10 pb-4">
-        <Image
-          src="/mascot-question.png"
-          alt="Mascot"
-          width={120}
-          height={120}
-          className="rounded-full shadow-lg border-4 border-purple-400 bg-white"
-          priority
-        />
-        <div className="mt-4 text-center">
-          <h2 className="text-3xl font-extrabold text-purple-300 drop-shadow mb-2">Welcome to Risk Mirror!</h2>
-          <p className="text-lg text-gray-200">
+      <div className="max-w-4xl mx-auto flex flex-col items-center pt-10 pb-6">
+        <div className="relative">
+          <Image
+            src="/mascot-question.png"
+            alt="Mascot"
+            width={130}
+            height={130}
+            className="rounded-full shadow-xl border-4 border-purple-400/80 bg-white transition-transform duration-300 hover:scale-105"
+            priority
+          />
+          <div className="absolute -inset-2 bg-purple-400/20 rounded-full blur-lg opacity-50" />
+        </div>
+        <div className="mt-6 text-center max-w-2xl">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-purple-300 drop-shadow-lg mb-3 tracking-tight">Welcome to Risk Mirror!</h2>
+          <p className="text-lg text-gray-200 leading-relaxed px-4">
             Fill out your details below and let our Miro guide you through your risk assessment journey.
           </p>
         </div>
@@ -245,14 +248,17 @@ export default function Page() {
 
       <div className="relative max-w-6xl mx-auto py-8 space-y-8">
         {/* Basic Details */}
-        <Card className="shadow-2xl rounded-2xl bg-white/10 backdrop-blur border border-white/10 text-gray-100 relative z-10 mb-8">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold tracking-tight">Basic Details</CardTitle>
+        <Card className="shadow-2xl rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-gray-100 relative z-10 mb-8 transition-all duration-300 hover:shadow-3xl hover:bg-white/[0.12]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-2xl font-bold tracking-tight flex items-center gap-3">
+              <div className="w-2 h-8 bg-gradient-to-b from-purple-400 to-blue-400 rounded-full" />
+              Basic Details
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label>Age *</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-200">Age *</Label>
                 <Input
                   type="number"
                   value={basicDetails.age}
@@ -263,16 +269,17 @@ export default function Page() {
                     )
                   }
                   required
-                  className="bg-gray-900/60 border-gray-700 text-gray-100"
+                  className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors"
+                  placeholder="Enter your age"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Gender *</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-200">Gender *</Label>
                 <Select
                   value={basicDetails.gender}
                   onValueChange={(value) => updateBasicDetails("gender", value)}
                 >
-                  <SelectTrigger className="bg-gray-900/60 border-gray-700 text-gray-100">
+                  <SelectTrigger className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,13 +288,13 @@ export default function Page() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Education *</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-200">Education *</Label>
                 <Select
                   value={basicDetails.education}
                   onValueChange={(value) => updateBasicDetails("education", value)}
                 >
-                  <SelectTrigger className="bg-gray-900/60 border-gray-700 text-gray-100">
+                  <SelectTrigger className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors">
                     <SelectValue placeholder="Select education" />
                   </SelectTrigger>
                   <SelectContent>
@@ -303,22 +310,23 @@ export default function Page() {
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Finance Risk Form */}
-          <Card className="shadow-xl rounded-2xl bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-blue-800/30 backdrop-blur border border-purple-400/30 text-gray-100 relative z-10">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-blue-600 bg-clip-text text-transparent tracking-tight">
+          <Card className="shadow-xl rounded-2xl bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-blue-800/30 backdrop-blur-md border border-purple-400/40 text-gray-100 relative z-10 transition-all duration-300 hover:shadow-2xl hover:border-purple-400/60">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-blue-600 bg-clip-text text-transparent tracking-tight flex items-center gap-3">
+                <div className="w-2 h-8 bg-gradient-to-b from-purple-400 to-blue-600 rounded-full" />
                 Finance Risk Assessment
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleFinanceSubmit} className="space-y-4">
+              <form onSubmit={handleFinanceSubmit} className="space-y-5">
                 {/* Marital Status */}
-                <div className="space-y-2">
-                  <Label>Marital Status *</Label>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-200">Marital Status *</Label>
                   <Select
                     value={financeForm.Marital_Status}
                     onValueChange={(value) => updateFinanceForm("Marital_Status", value)}
                   >
-                    <SelectTrigger className="bg-gray-900/60 border-gray-700 text-gray-100">
+                    <SelectTrigger className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -332,8 +340,8 @@ export default function Page() {
 
                 {/* Income and Loan Amount */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Income (USD) *</Label>
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium text-gray-200">Income (₹) *</Label>
                     <Input
                       type="number"
                       value={financeForm.Income !== undefined ? financeForm.Income : ""}
@@ -344,11 +352,11 @@ export default function Page() {
                         )
                       }
                       required
-                      className="bg-gray-900/60 border-gray-700 text-gray-100"
+                      className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Loan Amount (USD) *</Label>
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium text-gray-200">Loan Amount (₹) *</Label>
                     <Input
                       type="number"
                       value={financeForm.Loan_Amount !== undefined ? financeForm.Loan_Amount : ""}
@@ -359,14 +367,14 @@ export default function Page() {
                         )
                       }
                       required
-                      className="bg-gray-900/60 border-gray-700 text-gray-100"
+                      className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors"
                     />
                   </div>
                 </div>
 
                 {/* Debt to Income Ratio (Read-only) */}
-                <div className="space-y-2">
-                  <Label>Debt-to-Income Ratio (Auto-calculated)</Label>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-200">Debt-to-Income Ratio (Auto-calculated)</Label>
                   <Input
                     type="number"
                     value={
@@ -375,13 +383,13 @@ export default function Page() {
                         : "0"
                     }
                     readOnly
-                    className="bg-gray-800 border-gray-700 text-gray-300"
+                    className="bg-gray-800/80 border-gray-600 text-gray-300 cursor-not-allowed"
                   />
                 </div>
 
                 {/* Credit Score */}
-                <div className="space-y-2">
-                  <Label>Credit Score *</Label>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-200">Credit Score *</Label>
                   <Input
                     type="number"
                     value={financeForm.Credit_Score !== undefined ? financeForm.Credit_Score : ""}
@@ -392,7 +400,8 @@ export default function Page() {
                       )
                     }
                     required
-                    className="bg-gray-900/60 border-gray-700 text-gray-100"
+                    className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-colors"
+                    placeholder="e.g., 720"
                   />
                 </div>
 
@@ -475,7 +484,7 @@ export default function Page() {
 
                 {/* Assets Value */}
                 <div className="space-y-2">
-                  <Label>Assets Value (USD) *</Label>
+                  <Label>Assets Value (₹) *</Label>
                   <Input
                     type="number"
                     value={financeForm.Assets_Value !== undefined ? financeForm.Assets_Value : ""}
@@ -536,9 +545,20 @@ export default function Page() {
                   <p className="text-red-400 text-sm">{financeError}</p>
                 )}
 
-                <motion.div whileHover={{ scale: 1.02 }}>
-                  <Button type="submit" className="w-full" disabled={financeLoading}>
-                    {financeLoading ? "Analyzing..." : "Submit"}
+                <motion.div whileHover={{ scale: 1.02 }} className="pt-2">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 rounded-lg shadow-lg transition-all duration-300" 
+                    disabled={financeLoading}
+                  >
+                    {financeLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Analyzing...
+                      </div>
+                    ) : (
+                      "Submit Finance Assessment"
+                    )}
                   </Button>
                 </motion.div>
               </form>
@@ -548,13 +568,17 @@ export default function Page() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-6 p-4 bg-blue-900/40 rounded-lg border border-blue-400/30"
+                  className="mt-6 p-5 bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-xl border border-blue-400/40 backdrop-blur-sm shadow-lg"
                 >
-                  <h3 className="font-semibold text-lg mb-2">Finance Risk Rating</h3>
-                  <div className="text-sm">
-                    <p>
-                      <strong>Risk Rating:</strong> {financeResult["Risk Rating"]}
-                    </p>
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full" />
+                    Finance Risk Rating
+                  </h3>
+                  <div className="text-sm space-y-2">
+                    <div className="flex items-center justify-between bg-black/20 rounded-lg p-3">
+                      <span className="text-gray-300">Risk Rating:</span>
+                      <span className="font-semibold text-blue-300">{financeResult["Risk Rating"]}</span>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -562,17 +586,18 @@ export default function Page() {
           </Card>
 
           {/* Health Risk Form */}
-          <Card className="shadow-xl rounded-2xl bg-gradient-to-br from-green-900/30 via-teal-900/30 to-blue-800/30 backdrop-blur border border-green-400/30 text-gray-100 relative z-10">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-green-400 via-teal-400 to-blue-400 bg-clip-text text-transparent tracking-tight">
+          <Card className="shadow-xl rounded-2xl bg-gradient-to-br from-green-900/30 via-teal-900/30 to-blue-800/30 backdrop-blur-md border border-green-400/40 text-gray-100 relative z-10 transition-all duration-300 hover:shadow-2xl hover:border-green-400/60">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-green-400 via-teal-400 to-blue-400 bg-clip-text text-transparent tracking-tight flex items-center gap-3">
+                <div className="w-2 h-8 bg-gradient-to-b from-green-400 to-teal-400 rounded-full" />
                 Health Risk Assessment
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleHealthSubmit} className="space-y-4">
+              <form onSubmit={handleHealthSubmit} className="space-y-5">
                 {/* Current Smoker */}
-                <div className="space-y-2">
-                  <Label>Current Smoker *</Label>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-200">Current Smoker *</Label>
                   <Select
                     value={
                       healthForm.currentSmoker !== undefined
@@ -581,7 +606,7 @@ export default function Page() {
                     }
                     onValueChange={(value) => updateHealthForm("currentSmoker", Number.parseInt(value))}
                   >
-                    <SelectTrigger className="bg-gray-900/60 border-gray-700 text-gray-100">
+                    <SelectTrigger className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-green-400 focus:ring-2 focus:ring-green-400/20 transition-colors">
                       <SelectValue placeholder="Select option" />
                     </SelectTrigger>
                     <SelectContent>
@@ -592,8 +617,8 @@ export default function Page() {
                 </div>
 
                 {/* Cigarettes Per Day */}
-                <div className="space-y-2">
-                  <Label>Cigarettes Per Day *</Label>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-200">Cigarettes Per Day *</Label>
                   <Input
                     type="number"
                     step="0.1"
@@ -605,7 +630,8 @@ export default function Page() {
                       )
                     }
                     required
-                    className="bg-gray-900/60 border-gray-700 text-gray-100"
+                    className="bg-gray-900/60 border-gray-600 text-gray-100 focus:border-green-400 focus:ring-2 focus:ring-green-400/20 transition-colors"
+                    placeholder="e.g., 0"
                   />
                 </div>
 
@@ -802,9 +828,20 @@ export default function Page() {
                   <p className="text-red-400 text-sm">{healthError}</p>
                 )}
 
-                <motion.div whileHover={{ scale: 1.02 }}>
-                  <Button type="submit" className="w-full" disabled={healthLoading}>
-                    {healthLoading ? "Analyzing..." : "Submit"}
+                <motion.div whileHover={{ scale: 1.02 }} className="pt-2">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold py-3 rounded-lg shadow-lg transition-all duration-300" 
+                    disabled={healthLoading}
+                  >
+                    {healthLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Analyzing...
+                      </div>
+                    ) : (
+                      "Submit Health Assessment"
+                    )}
                   </Button>
                 </motion.div>
               </form>
@@ -814,16 +851,21 @@ export default function Page() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-6 p-4 bg-green-900/40 rounded-lg border border-green-400/30"
+                  className="mt-6 p-5 bg-gradient-to-r from-green-900/50 to-teal-900/50 rounded-xl border border-green-400/40 backdrop-blur-sm shadow-lg"
                 >
-                  <h3 className="font-semibold text-lg mb-2">Health Prediction Result</h3>
-                  <div className="text-sm space-y-1">
-                    <p>
-                      <strong>Ten Year CHD:</strong> {healthResult.TenYearCHD}
-                    </p>
-                    <p>
-                      <strong>Probability:</strong> {healthResult.probability}
-                    </p>
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full" />
+                    Health Prediction Result
+                  </h3>
+                  <div className="text-sm space-y-2">
+                    <div className="flex items-center justify-between bg-black/20 rounded-lg p-3">
+                      <span className="text-gray-300">Ten Year CHD:</span>
+                      <span className="font-semibold text-green-300">{healthResult.TenYearCHD}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-black/20 rounded-lg p-3">
+                      <span className="text-gray-300">Probability:</span>
+                      <span className="font-semibold text-green-300">{healthResult.probability}</span>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -832,10 +874,10 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 mt-8">
-        <div className="flex space-x-2 justify-center">
+      <div className="max-w-6xl mx-auto px-4 mt-12">
+        <div className="flex flex-wrap gap-3 justify-center">
           {/* New Fill Data Manually Button */}
-    <Button variant="secondary" className="flex-1 max-w-xs bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
+    <Button variant="secondary" className="flex-1 max-w-xs bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg font-medium py-3 transition-all duration-300 hover:scale-105"
       onClick={() => {
         // Fill sample data into the forms
         setFinanceForm({
@@ -870,7 +912,7 @@ export default function Page() {
         });
 
         setBasicDetails({
-          age: 35,
+          age: "35",
           gender: "Male",
           education: "1", // Bachelor's
         });
@@ -880,7 +922,7 @@ export default function Page() {
     </Button>
           <Button
             variant="outline"
-            className="flex-1 max-w-xs bg-transparent border border-gray-700 text-gray-100"
+            className="flex-1 max-w-xs bg-transparent border-2 border-gray-600 text-gray-100 hover:bg-gray-700/30 shadow-lg font-medium py-3 transition-all duration-300 hover:scale-105"
             onClick={() => setResetKey((prev) => prev + 1)}
           >
             Reset Cards
@@ -888,7 +930,7 @@ export default function Page() {
 
           <Button
             variant="default"
-            className="flex-1 max-w-xs"
+            className="flex-1 max-w-xs bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg font-medium py-3 transition-all duration-300 hover:scale-105"
             onClick={() => {
               const url = `/ai-assistant?riskScore=${riskScore}&financial=${subScores.financial}&health=${subScores.health}&time=${subScores.time}`
               router.push(url)
@@ -899,13 +941,14 @@ export default function Page() {
 
           <Button
             variant="default"
-            className="flex-1 max-w-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            className="flex-1 max-w-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg font-medium py-3 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             onClick={() => {
               const dashboardData = {
                 financeResult: financeResult,
                 healthResult: healthResult,
                 financeForm: financeForm,
                 healthForm: healthForm,
+                basicDetails: basicDetails, /*<-*/
               }
               localStorage.setItem("dashboardData", JSON.stringify(dashboardData))
               router.push("/riskassessment/dashboard")

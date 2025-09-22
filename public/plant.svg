@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="300" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Soil/Ground -->
+  <ellipse cx="100" cy="260" rx="80" ry="40" fill="#8B4513" opacity="0.8"/>
+  <ellipse cx="90" cy="255" rx="60" ry="30" fill="#A0522D"/>
+  <ellipse cx="110" cy="258" rx="70" ry="35" fill="#654321"/>
+  
+  <!-- Main stem -->
+  <rect x="98" y="180" width="4" height="80" fill="#228B22" rx="2"/>
+  
+  <!-- Leaves (bottom pair) -->
+  <ellipse cx="70" cy="220" rx="25" ry="15" fill="#32CD32" transform="rotate(-30 70 220)"/>
+  <path d="M70 220 Q60 215 55 210 Q65 215 70 220" stroke="#228B22" stroke-width="1" fill="none"/>
+  
+  <ellipse cx="130" cy="220" rx="25" ry="15" fill="#32CD32" transform="rotate(30 130 220)"/>
+  <path d="M130 220 Q140 215 145 210 Q135 215 130 220" stroke="#228B22" stroke-width="1" fill="none"/>
+  
+  <!-- Leaves (middle pair) -->
+  <ellipse cx="65" cy="180" rx="30" ry="20" fill="#228B22" transform="rotate(-25 65 180)"/>
+  <path d="M65 180 Q55 175 48 168 Q58 175 65 180" stroke="#1F5F1F" stroke-width="1" fill="none"/>
+  
+  <ellipse cx="135" cy="180" rx="30" ry="20" fill="#228B22" transform="rotate(25 135 180)"/>
+  <path d="M135 180 Q145 175 152 168 Q142 175 135 180" stroke="#1F5F1F" stroke-width="1" fill="none"/>
+  
+  <!-- Leaves (top pair) -->
+  <ellipse cx="75" cy="140" rx="28" ry="18" fill="#32CD32" transform="rotate(-20 75 140)"/>
+  <path d="M75 140 Q65 135 58 128 Q68 135 75 140" stroke="#228B22" stroke-width="1" fill="none"/>
+  
+  <ellipse cx="125" cy="140" rx="28" ry="18" fill="#32CD32" transform="rotate(20 125 140)"/>
+  <path d="M125 140 Q135 135 142 128 Q132 135 125 140" stroke="#228B22" stroke-width="1" fill="none"/>
+  
+  <!-- Flowers -->
+  <!-- Flower 1 -->
+  <g transform="translate(85,120)">
+    <circle cx="0" cy="0" r="3" fill="#FF69B4"/>
+    <circle cx="0" cy="-6" r="4" fill="#FFB6C1"/>
+    <circle cx="4" cy="-3" r="4" fill="#FFB6C1"/>
+    <circle cx="4" cy="3" r="4" fill="#FFB6C1"/>
+    <circle cx="-4" cy="3" r="4" fill="#FFB6C1"/>
+    <circle cx="-4" cy="-3" r="4" fill="#FFB6C1"/>
+    <circle cx="0" cy="0" r="2" fill="#228B22"/>
+  </g>
+  
+  <!-- Flower 2 -->
+  <g transform="translate(115,125)">
+    <circle cx="0" cy="0" r="3" fill="#FF69B4"/>
+    <circle cx="0" cy="-6" r="4" fill="#FFB6C1"/>
+    <circle cx="4" cy="-3" r="4" fill="#FFB6C1"/>
+    <circle cx="4" cy="3" r="4" fill="#FFB6C1"/>
+    <circle cx="-4" cy="3" r="4" fill="#FFB6C1"/>
+    <circle cx="-4" cy="-3" r="4" fill="#FFB6C1"/>
+    <circle cx="0" cy="0" r="2" fill="#228B22"/>
+  </g>
+  
+  <!-- Flower 3 -->
+  <g transform="translate(100,110)">
+    <circle cx="0" cy="0" r="3" fill="#FF69B4"/>
+    <circle cx="0" cy="-6" r="4" fill="#FFB6C1"/>
+    <circle cx="4" cy="-3" r="4" fill="#FFB6C1"/>
+    <circle cx="4" cy="3" r="4" fill="#FFB6C1"/>
+    <circle cx="-4" cy="3" r="4" fill="#FFB6C1"/>
+    <circle cx="-4" cy="-3" r="4" fill="#FFB6C1"/>
+    <circle cx="0" cy="0" r="2" fill="#228B22"/>
+  </g>
+  
+  <!-- Leaf details/veins -->
+  <g stroke="#1F5F1F" stroke-width="0.5" fill="none" opacity="0.7">
+    <!-- Bottom leaves veins -->
+    <path d="M70 220 Q65 215 60 210"/>
+    <path d="M130 220 Q135 215 140 210"/>
+    
+    <!-- Middle leaves veins -->
+    <path d="M65 180 Q60 175 55 170"/>
+    <path d="M65 180 Q70 175 75 170"/>
+    <path d="M135 180 Q140 175 145 170"/>
+    <path d="M135 180 Q130 175 125 170"/>
+    
+    <!-- Top leaves veins -->
+    <path d="M75 140 Q70 135 65 130"/>
+    <path d="M75 140 Q80 135 85 130"/>
+    <path d="M125 140 Q130 135 135 130"/>
+    <path d="M125 140 Q120 135 115 130"/>
+  </g>
+</svg>

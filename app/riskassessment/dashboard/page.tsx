@@ -7,8 +7,10 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Brain, TrendingUp, Clock, Shield, Coins } from "lucide-react"
+import { ArrowLeft, Brain, TrendingUp, Clock, Shield, Coins, Download, Leaf } from "lucide-react"
 import MiroMoodWidget from "@/components/MiroMoodWidget"
+import ESGScore from "@/components/ESGScore"
+import ESGWidget from "@/components/ESGWidget"
 
 // Finance Form Interface
 interface FinanceFormData {
@@ -54,6 +56,11 @@ interface DashboardData {
   healthResult: any
   financeForm: FinanceFormData
   healthForm: HealthFormData
+  basicDetails?: { /*<-*/
+    age: string | number
+    gender: string
+    education: string
+  } /*<-*/
 }
 
 interface ScoreData {
@@ -78,6 +85,16 @@ export default function Dashboard() {
     overall: string
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [showESGTest, setShowESGTest] = useState(false)
+  const [esgScores, setESGScores] = useState<{
+    environmental: number
+    social: number
+    governance: number
+    overall: number
+  } | null>(null)
+  const [showESGWidget, setShowESGWidget] = useState(false)
+  const [esgSkipped, setEsgSkipped] = useState(false)
 
   useEffect(() => {
     // Check if we're in the browser environment
@@ -89,6 +106,32 @@ export default function Dashboard() {
           console.log("Dashboard data loaded:", parsedData)
           setDashboardData(parsedData)
           calculateScores(parsedData)
+          
+          // Restore skip flag for this session (do not persist permanently)
+          const skipped = sessionStorage.getItem("esgSkipped") === "true"
+          if (skipped) {
+            setEsgSkipped(true)
+          }
+
+          // Show ESG test popup after dashboard loads
+          setTimeout(() => {
+            setShowESGTest(true)
+          }, 2000)
+          
+          // Check for existing ESG scores
+          const savedESGScores = localStorage.getItem("esgScores")
+          if (savedESGScores) {
+            try {
+              const parsedESGScores = JSON.parse(savedESGScores)
+              setESGScores(parsedESGScores)
+              // Only show the widget if not skipped in this session
+              if (!skipped) {
+                setShowESGWidget(true)
+              }
+            } catch (error) {
+              console.error("Error parsing ESG scores:", error)
+            }
+          }
         } catch (error) {
           console.error("Error parsing dashboard data:", error)
           router.push("/")
@@ -133,7 +176,8 @@ export default function Dashboard() {
       if (typeof financeForm.Debt_to_Income_Ratio === "number" && financeForm.Debt_to_Income_Ratio >= 0) {
         const dtiWeight = 0.2
         let dtiRisk = 0
-        const dti = financeForm.Debt_to_Income_Ratio / 100
+        // Treat DTI as a ratio (e.g., 0.25 for 25%), not a percentage. Previously dividing by 100 made it 0.0025. /*<-*/
+        const dti = financeForm.Debt_to_Income_Ratio /*<-*/
         if (dti <= 0.2) dtiRisk = 0.1
         else if (dti <= 0.36) dtiRisk = 0.3
         else if (dti <= 0.5) dtiRisk = 0.6
@@ -253,6 +297,7 @@ export default function Dashboard() {
         return 0.1
       }
 
+      // Framingham constants (with intercept) and corrected male L_mean for stability /*<-*/
       const coefficients = {
         male: {
           beta0: -29.799,
@@ -262,7 +307,8 @@ export default function Dashboard() {
           betaLnSBP_untreated: 1.957,
           betaSmoker: 0.549,
           betaDiabetes: 0.645,
-          L_mean: 61.18,
+          // Calibrated L_mean for this feature set (baseline: age 50, BMI 26, SBP 125, non-smoker, non-diabetic) /*<-*/
+          L_mean: 0.865, /*<-*/
           S0: 0.88431,
         },
         female: {
@@ -273,7 +319,8 @@ export default function Dashboard() {
           betaLnSBP_untreated: 2.323,
           betaSmoker: 0.691,
           betaDiabetes: 0.874,
-          L_mean: 26.1931,
+          // Calibrated L_mean for female baseline (same baseline as above) /*<-*/
+          L_mean: -0.131, /*<-*/
           S0: 0.95012,
         },
       }
@@ -291,7 +338,8 @@ export default function Dashboard() {
 
       const currentSmoker = healthForm.currentSmoker === 1 ? 1 : 0
       const diabetes = healthForm.diabetes === 1 ? 1 : 0
-      
+
+      // Apply the formula strictly: L = β0 + βlnAge*ln(age) + βlnBMI*ln(BMI) + βlnSBP*ln(SBP) + βsmoker*smoker + βdiabetes*diabetes /*<-*/
       const L =
         coeff.beta0 +
         coeff.betaLnAge * lnAge +
@@ -300,9 +348,17 @@ export default function Dashboard() {
         coeff.betaSmoker * currentSmoker +
         coeff.betaDiabetes * diabetes
 
-      const p10 = 1 - Math.pow(coeff.S0, Math.exp(L - coeff.L_mean))
-      const result = Math.max(0, Math.min(1, p10))
-      const finalResult = isNaN(result) || !isFinite(result) ? 0.1 : result
+      // Add safety bounds to prevent memory overflow from extreme exp() values /*<-*/
+      const exponent = L - coeff.L_mean
+      // Clamp exponent to prevent overflow: exp(700) ≈ 10^304, exp(-700) ≈ 0 /*<-*/
+      const safeExponent = Math.max(-50, Math.min(50, exponent)) /*<-*/
+      const expTerm = Math.exp(safeExponent) /*<-*/
+      
+      // Additional safety: clamp the power term to prevent S0^(huge number) /*<-*/
+      const safePowerTerm = Math.max(0.001, Math.min(1000, expTerm)) /*<-*/
+      const p10 = Math.max(0, Math.min(1, 1 - Math.pow(coeff.S0, safePowerTerm))) /*<-*/
+      
+      const finalResult = isNaN(p10) || !isFinite(p10) ? 0.1 : p10 /*<-*/
       return finalResult
     } catch (error) {
       console.error("Error in Framingham calculation:", error)
@@ -316,9 +372,17 @@ export default function Dashboard() {
       let financeScore = 0
       let healthClassification = "No Data"
       let financeClassification = "No Data"
+      let enhancedHealthForm = null /*<-*/
 
       if (data.healthForm) {
-        const p10 = calculateFraminghamRisk(data.healthForm)
+        // Merge basic details with health form for accurate calculation /*<-*/
+        enhancedHealthForm = { /*<-*/
+          ...data.healthForm, /*<-*/
+          age: data.basicDetails?.age ? Number(data.basicDetails.age) : data.healthForm.age, /*<-*/
+          male: data.basicDetails?.gender ? (data.basicDetails.gender === "Male" ? 1 : 0) : data.healthForm.male, /*<-*/
+          education: data.basicDetails?.education ? Number.parseInt(data.basicDetails.education) : data.healthForm.education /*<-*/
+        } /*<-*/
+        const p10 = calculateFraminghamRisk(enhancedHealthForm)
         if (!isNaN(p10) && isFinite(p10)) {
           healthScore = Math.round(100 * (1 - p10))
           healthClassification = getHealthClassification(p10)
@@ -353,7 +417,7 @@ export default function Dashboard() {
         }
       }
 
-      const healthRiskProb = data.healthForm ? calculateFraminghamRisk(data.healthForm) : 0.1
+      const healthRiskProb = data.healthForm ? calculateFraminghamRisk(enhancedHealthForm || data.healthForm) : 0.1 /*<-*/
       const validHealthRisk = isNaN(healthRiskProb) || !isFinite(healthRiskProb) ? 0.1 : healthRiskProb
       const validFinanceRisk = isNaN(FSI) || !isFinite(FSI) ? 0.5 : FSI
 
@@ -380,6 +444,10 @@ export default function Dashboard() {
       }
 
       setScores(calculatedScores)
+      // Save calculated scores for AI assistant access /*<-*/
+      if (typeof window !== "undefined") { /*<-*/
+        localStorage.setItem("dashboardCalculatedScores", JSON.stringify(calculatedScores)) /*<-*/
+      } /*<-*/
       await generateAIAnalysis(calculatedScores)
     } catch (error) {
       console.error("Error calculating scores:", error)
@@ -414,7 +482,7 @@ export default function Dashboard() {
 
   const getTimeHorizonInterpretation = (score: number) => {
     if (isNaN(score) || !isFinite(score)) return "No Data"
-    if (score >= 70) return "Long-term safe zone"
+    if (score >= 70) return "Long-term safe"
     if (score >= 40) return "Moderate horizon"
     return "Short horizon"
   }
@@ -484,6 +552,191 @@ export default function Dashboard() {
     return "bg-red-500"
   }
 
+  const generatePDFReport = async () => {
+    if (isGeneratingPDF) return
+
+    setIsGeneratingPDF(true)
+
+    try {
+      const { default: jsPDF } = await import('jspdf')
+
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 16
+      const now = new Date()
+      const dateStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+
+      // Helper: color by score
+      const colorFor = (score: number): [number, number, number] =>
+        score >= 80 ? [34, 197, 94] : score >= 50 ? [234, 179, 8] : [239, 68, 68]
+
+      // Header banner
+      pdf.setFillColor(79, 70, 229) // indigo-600
+      pdf.rect(0, 0, pageWidth, 26, 'F')
+      pdf.setTextColor(255, 255, 255)
+      pdf.setFontSize(14)
+      pdf.text('MIRO Risk Snapshot', margin, 16)
+      pdf.setFontSize(10)
+      pdf.text(dateStr, pageWidth - margin, 16, { align: 'right' })
+
+      // Card background
+      const cardX = margin
+      const cardY = 34
+      const cardW = pageWidth - margin * 2
+      const cardH = pageHeight - cardY - 18
+      pdf.setFillColor(248, 250, 252) // slate-50
+      pdf.rect(cardX, cardY, cardW, cardH, 'F')
+      pdf.setDrawColor(226, 232, 240) // slate-200
+      pdf.rect(cardX, cardY, cardW, cardH)
+
+      // Overall section
+      const overall = scores?.overallRiskScore ?? 0
+      const health = scores?.healthScore ?? 0
+      const finance = scores?.financeScore ?? 0
+      const timeH = scores?.timeHorizonScore ?? 0
+
+      let y = cardY + 12
+      pdf.setTextColor(15, 23, 42) // slate-900
+      pdf.setFontSize(12)
+      pdf.text('Overall Risk Score', cardX + 8, y)
+
+      // Big score
+      y += 10
+      const overallColor = colorFor(overall)
+      pdf.setTextColor(overallColor[0], overallColor[1], overallColor[2])
+      pdf.setFontSize(32)
+      pdf.text(String(overall), cardX + 8, y)
+      pdf.setFontSize(10)
+      pdf.setTextColor(100, 116, 139)
+      pdf.text('/100', cardX + 8 + 22, y)
+
+      // Overall bar
+      const barX = cardX + 60
+      const barW = cardW - 68
+      const barY = y - 6
+      pdf.setFillColor(229, 231, 235) // gray-200
+      pdf.rect(barX, barY, barW, 5, 'F')
+      const filled = Math.max(0, Math.min(barW, (overall / 100) * barW))
+      pdf.setFillColor(overallColor[0], overallColor[1], overallColor[2])
+      pdf.rect(barX, barY, filled, 5, 'F')
+
+      // Mini score chips row
+      y += 12
+      const chipW = (cardW - 8 - 8) / 3
+      const chips = [
+        { label: 'Health', value: health },
+        { label: 'Finance', value: finance },
+        { label: 'Time Horizon', value: timeH },
+      ]
+      chips.forEach((c, i) => {
+        const cx = cardX + 8 + i * chipW
+        const cy = y
+        pdf.setFillColor(255, 255, 255)
+        pdf.rect(cx, cy, chipW - 6, 22, 'F')
+        pdf.setDrawColor(226, 232, 240)
+        pdf.rect(cx, cy, chipW - 6, 22)
+        pdf.setTextColor(71, 85, 105)
+        pdf.setFontSize(10)
+        pdf.text(c.label, cx + 6, cy + 8)
+        const cColor = colorFor(c.value)
+        pdf.setTextColor(cColor[0], cColor[1], cColor[2])
+        pdf.setFontSize(14)
+        pdf.text(String(c.value), cx + 6, cy + 18)
+        // small bar
+        const sbx = cx + 36
+        const sbw = chipW - 6 - 42
+        pdf.setFillColor(229, 231, 235)
+        pdf.rect(sbx, cy + 14, sbw, 3, 'F')
+        const sfill = Math.max(0, Math.min(sbw, (c.value / 100) * sbw))
+        pdf.setFillColor(cColor[0], cColor[1], cColor[2])
+        pdf.rect(sbx, cy + 14, sfill, 3, 'F')
+      })
+
+      // Divider
+      y += 30
+      pdf.setDrawColor(226, 232, 240)
+      pdf.line(cardX + 8, y, cardX + cardW - 8, y)
+
+      // General comments (short and positive/neutral tone)
+      y += 12
+      pdf.setTextColor(15, 23, 42)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(14)
+      pdf.text('General Comments', cardX + 8, y)
+      pdf.setFont('helvetica', 'normal')
+      y += 9
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFontSize(11)
+      const comments = `Your overall profile indicates a ${overall >= 80 ? 'strong' : overall >= 50 ? 'moderate' : 'high'} risk posture. Health and financial scores are summarised above. Focus on steady, incremental improvements rather than drastic changes.`
+      pdf.splitTextToSize(comments, cardW - 24).forEach((line: string) => {
+        pdf.text(line, cardX + 8, y)
+        y += 6
+      })
+
+      // Recommendations (hardcoded, concise)
+      y += 8
+      pdf.setTextColor(15, 23, 42)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(14)
+      pdf.text('Recommended Next Steps', cardX + 8, y)
+      pdf.setFont('helvetica', 'normal')
+      y += 9
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFontSize(11)
+      const recs = [
+        'Build a 3–6 month emergency fund and track monthly expenses.',
+        'Automate bill payments to protect credit and reduce missed dues.',
+        'Target DTI below 36% by prioritizing high-interest debt.',
+        'Adopt a simple weekly routine: 150 mins activity + balanced meals.',
+        'Schedule a quarterly check-in to review scores and progress.'
+      ]
+      recs.forEach((r) => {
+        const lines = pdf.splitTextToSize(`• ${r}`, cardW - 24)
+        lines.forEach((line: string, idx: number) => {
+          pdf.text(line, cardX + 8, y)
+          y += 6
+        })
+        y += 2
+      })
+
+      // Footer note
+      pdf.setFontSize(8)
+      pdf.setTextColor(100, 116, 139)
+      pdf.text('This 1-page report is a high-level snapshot for personal guidance only.', pageWidth / 2, pageHeight - 8, { align: 'center' })
+
+      pdf.save(`MIRO_Risk_Snapshot_${now.toISOString().slice(0,10)}.pdf`)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Failed to generate PDF report. Please try again.')
+    } finally {
+      setIsGeneratingPDF(false)
+    }
+  }
+
+  const handleESGComplete = (scores: { environmental: number; social: number; governance: number; overall: number }) => {
+    setESGScores(scores)
+    setShowESGTest(false)
+    setEsgSkipped(false)
+    setShowESGWidget(true)
+    
+    // Persist choices
+    if (typeof window !== "undefined") {
+      localStorage.setItem("esgScores", JSON.stringify(scores))
+      sessionStorage.setItem("esgSkipped", "false")
+    }
+  }
+
+  const handleESGClose = () => {
+    setShowESGTest(false)
+    setShowESGWidget(false)
+    setESGScores(null)
+    setEsgSkipped(true)
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("esgSkipped", "true")
+    }
+  }
+
   if (loading || !scores) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -501,142 +754,227 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-8">
-{/* Header */}
-<div className="grid grid-cols-3 items-center mb-8">
-  {/* left: back button */}
-  <div className="justify-self-start">
-    <Button variant="ghost" onClick={() => router.push("/")} className="flex items-center gap-2">
-      <ArrowLeft className="h-4 w-4" />
-      Back to Assessment
-    </Button>
-  </div>
+        {/* Header */}
+        <div className="grid grid-cols-3 items-center mb-10">
+          {/* left: back button */}
+          <div className="justify-self-start">
+            <Button variant="ghost" onClick={() => router.push("/")} className="flex items-center gap-2 hover:bg-white/10 transition-colors duration-200 rounded-lg px-3 py-2">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back to Assessment</span>
+            </Button>
+          </div>
 
-  {/* center: title (perfectly centered) */}
-  <div className="justify-self-center">
-    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-      Risk Dashboard
-    </h1>
-  </div>
+          {/* center: title (perfectly centered) */}
+          <div className="justify-self-center text-center">
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent tracking-tight">
+              Risk Dashboard
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">
+              Your comprehensive risk analysis
+            </p>
+          </div>
 
-  {/* right: spacer (keeps title centered) */}
-  <div className="justify-self-end" />
-</div>
+          {/* right: download button */}
+          <div className="justify-self-end">
+            <Button 
+              onClick={generatePDFReport} 
+              disabled={isGeneratingPDF}
+              className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
+            >
+              {isGeneratingPDF ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  <span className="hidden sm:inline">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Download Report</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
 
 
         {/* MAIN: left (scores) + right (Miro widget) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
           {/* Left: Scores (spans 2 columns on large screens) */}
           <div className="lg:col-span-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 items-stretch">
               {/* Health Score */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card className="h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Shield className="h-5 w-5 text-green-600" />
-                  Health Risk
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="group">
+            <Card className="h-full border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-green-50/50 dark:from-gray-800 dark:to-green-900/10 hover:-translate-y-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-lg font-semibold">
+                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <Shield className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <span className="text-gray-800 dark:text-gray-200">Health Score</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-3xl font-bold ${getScoreColor(scores.healthScore)}`}>
+              <CardContent className="flex flex-col justify-between h-full space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`text-4xl font-bold ${getScoreColor(scores.healthScore)} tracking-tight`}>
                       {scores.healthScore}
                     </span>
-                    <Badge variant="outline">{scores.healthClassification}</Badge>
+                    <Badge variant="secondary" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 font-medium text-xs px-2 py-0.5 rounded-md leading-tight whitespace-nowrap shrink-0">
+                      {scores.healthClassification}
+                    </Badge>
                   </div>
-                  <Progress value={scores.healthScore} className="h-2 mt-3" />
+                  <div className="relative">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                      <div 
+className="h-full bg-green-600 rounded-full transition-all duration-1000 ease-out"
+                        style={{ width: `${scores.healthScore}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {aiAnalysis?.health &&
- !aiAnalysis.health.toLowerCase().includes("unknown") &&
- !aiAnalysis.health.toLowerCase().includes("unavailable") &&
- !aiAnalysis.health.toLowerCase().includes("n/a") && (
-  <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.health}</p>
-)}
-
+                  !aiAnalysis.health.toLowerCase().includes("unknown") &&
+                  !aiAnalysis.health.toLowerCase().includes("unavailable") &&
+                  !aiAnalysis.health.toLowerCase().includes("n/a") && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-green-50/50 dark:bg-green-900/10 p-3 rounded-lg border border-green-100 dark:border-green-900/20">
+                      {aiAnalysis.health}
+                    </p>
+                )}
               </CardContent>
             </Card>
           </motion.div>
 
               {/* Finance Score */}
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <Card className="relative overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <TrendingUp className="h-5 w-5 text-blue-600" />
-                      Financial Risk
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="group">
+                <Card className="relative overflow-hidden h-full border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/10 hover:-translate-y-1">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-3 text-lg font-semibold">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                        <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <span className="text-gray-800 dark:text-gray-200">Financial Score</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-3xl font-bold ${getScoreColor(scores.financeScore)}`}>{scores.financeScore}</span>
-                        <Badge variant="outline">{scores.financeClassification}</Badge>
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className={`text-4xl font-bold ${getScoreColor(scores.financeScore)} tracking-tight`}>
+                            {scores.financeScore}
+                          </span>
+                          <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 font-medium text-xs px-2 py-0.5 rounded-md leading-tight whitespace-nowrap shrink-0">
+                            {scores.financeClassification}
+                          </Badge>
+                        </div>
+                        <div className="relative">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                            <div 
+className="h-full bg-green-600 rounded-full transition-all duration-1000 ease-out"
+                              style={{ width: `${scores.financeScore}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <Progress value={scores.financeScore} className="h-2" />
+                      
                       {aiAnalysis?.finance &&
- !aiAnalysis.finance.toLowerCase().includes("unknown") &&
- !aiAnalysis.finance.toLowerCase().includes("unavailable") &&
- !aiAnalysis.finance.toLowerCase().includes("n/a") && (
-  <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.finance}</p>
-)}
-
+                        !aiAnalysis.finance.toLowerCase().includes("unknown") &&
+                        !aiAnalysis.finance.toLowerCase().includes("unavailable") &&
+                        !aiAnalysis.finance.toLowerCase().includes("n/a") && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/20">
+                            {aiAnalysis.finance}
+                          </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
 
               {/* Time Horizon */}
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <Card className="relative overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Clock className="h-5 w-5 text-purple-600" />
-                      Time Horizon
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="group">
+                <Card className="relative overflow-hidden h-full border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-800 dark:to-purple-900/10 hover:-translate-y-1">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-3 text-lg font-semibold">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                        <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <span className="text-gray-800 dark:text-gray-200">Time Horizon</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-3xl font-bold ${getScoreColor(scores.timeHorizonScore)}`}>{scores.timeHorizonScore}</span>
-                        <Badge variant="outline">{scores.timeHorizonInterpretation}</Badge>
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className={`text-4xl font-bold ${getScoreColor(scores.timeHorizonScore)} tracking-tight`}>
+                            {scores.timeHorizonScore}
+                          </span>
+<Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-normal break-words text-center leading-tight max-w-[88px]">
+                            {scores.timeHorizonInterpretation}
+                          </Badge>
+                        </div>
+                        <div className="relative">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                            <div 
+className="h-full bg-green-600 rounded-full transition-all duration-1000 ease-out"
+                              style={{ width: `${scores.timeHorizonScore}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <Progress value={scores.timeHorizonScore} className="h-2" />
+                      
                       {aiAnalysis?.timeHorizon &&
- !aiAnalysis.timeHorizon.toLowerCase().includes("unknown") &&
- !aiAnalysis.timeHorizon.toLowerCase().includes("unavailable") && (
-    <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.timeHorizon}</p>
-)}
-
+                        !aiAnalysis.timeHorizon.toLowerCase().includes("unknown") &&
+                        !aiAnalysis.timeHorizon.toLowerCase().includes("unavailable") && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-purple-50/50 dark:bg-purple-900/10 p-3 rounded-lg border border-purple-100 dark:border-purple-900/20">
+                            {aiAnalysis.timeHorizon}
+                          </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
 
               {/* Overall Risk */}
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                <Card className="relative overflow-hidden border-2 border-primary">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Brain className="h-5 w-5 text-primary" />
-                      Overall Risk
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="group">
+                <Card className="relative overflow-hidden h-full border-2 border-primary/60 shadow-lg hover:shadow-xl hover:border-primary/80 transition-all duration-300 bg-gradient-to-br from-white to-indigo-50/50 dark:from-gray-800 dark:to-indigo-900/10 hover:-translate-y-1">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-3 text-lg font-semibold">
+                      <div className="p-2 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                        <Brain className="h-5 w-5 text-primary" />
+                      </div>
+                      <span className="text-gray-800 dark:text-gray-200">Overall Risk</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-3xl font-bold ${getScoreColor(scores.overallRiskScore)}`}>{scores.overallRiskScore}</span>
-                        <Badge variant="default">{scores.overallRiskInterpretation}</Badge>
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className={`text-4xl font-bold ${getScoreColor(scores.overallRiskScore)} tracking-tight`}>
+                            {scores.overallRiskScore}
+                          </span>
+                          <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 font-medium text-xs px-2 py-0.5 rounded-md leading-tight whitespace-nowrap shrink-0">
+                            {scores.overallRiskInterpretation}
+                          </Badge>
+                        </div>
+                        <div className="relative">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                            <div 
+className="h-full bg-green-600 rounded-full transition-all duration-1000 ease-out"
+                              style={{ width: `${scores.overallRiskScore}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <Progress value={scores.overallRiskScore} className="h-2" />
+                      
                       {aiAnalysis?.overall &&
- !aiAnalysis.overall.toLowerCase().includes("unknown") &&
- !aiAnalysis.overall.toLowerCase().includes("unavailable") &&
- !aiAnalysis.overall.toLowerCase().includes("n/a") && (
-  <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.overall}</p>
-)}
-
+                        !aiAnalysis.overall.toLowerCase().includes("unknown") &&
+                        !aiAnalysis.overall.toLowerCase().includes("unavailable") &&
+                        !aiAnalysis.overall.toLowerCase().includes("n/a") && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-indigo-50/50 dark:bg-indigo-900/10 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900/20">
+                            {aiAnalysis.overall}
+                          </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -651,7 +989,7 @@ export default function Dashboard() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Shield className="h-5 w-5 text-green-600" />
-                      Health Risk Details
+                      Health Score Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -669,7 +1007,8 @@ export default function Dashboard() {
                         <div className="text-xs text-gray-500 border-t pt-3">
                           <p><strong>Based on:</strong></p>
                           <ul className="mt-1 space-y-1">
-                            <li>• Age: {dashboardData.healthForm.age} years</li>
+                            <li>• Age: {dashboardData.basicDetails?.age || dashboardData.healthForm.age || "N/A"} years</li> {/*<-*/}
+                            <li>• Gender: {dashboardData.basicDetails?.gender || (dashboardData.healthForm.male === 1 ? "Male" : "Female") || "N/A"}</li> {/*<-*/}
                             <li>• BMI: {dashboardData.healthForm.BMI}</li>
                             <li>• Blood Pressure: {dashboardData.healthForm.sysBP}/{dashboardData.healthForm.diaBP}</li>
                             <li>• Smoking: {dashboardData.healthForm.currentSmoker ? "Yes" : "No"}</li>
@@ -688,7 +1027,7 @@ export default function Dashboard() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="h-5 w-5 text-blue-600" />
-                      Financial Risk Details
+                      Financial Score Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -706,6 +1045,8 @@ export default function Dashboard() {
                         <div className="text-xs text-gray-500 border-t pt-3">
                           <p><strong>Based on:</strong></p>
                           <ul className="mt-1 space-y-1">
+                            <li>• Age: {dashboardData.basicDetails?.age || "N/A"} years</li> {/*<-*/}
+                            <li>• Gender: {dashboardData.basicDetails?.gender || "N/A"}</li> {/*<-*/}
                             <li>• Credit Score: {dashboardData.financeForm.Credit_Score}</li>
                             <li>• DTI Ratio: {dashboardData.financeForm.Debt_to_Income_Ratio}%</li>
                             <li>• Employment: {dashboardData.financeForm.Employment_Status}</li>
@@ -763,36 +1104,119 @@ export default function Dashboard() {
               </Card>
             </motion.div>
 
-            {/* Know More Button */}
-            <div className="text-center space-y-3">
-              <Button onClick={() => router.push("/riskassessment/know-more")} variant="outline" size="lg" className="bg-white/50 backdrop-blur hover:bg-white/80 transition-all duration-300">
-                Know More About These Calculations
-              </Button>
-              <Button onClick={() => router.push("/riskassessment/dashboard/what-if")} variant="default" size="lg" className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all duration-300">
-                What-If Simulator
-              </Button>
+            {/* Action Buttons */}
+<div className="text-center space-y-4 mt-10">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <Button 
+                  onClick={() => router.push("/riskassessment/know-more")} 
+                  variant="outline" 
+                  size="lg" 
+                  className="bg-white/60 dark:bg-white/10 backdrop-blur-sm border-gray-300 dark:border-gray-600 hover:bg-white/80 dark:hover:bg-white/20 transition-all duration-300 rounded-xl px-8 py-3 font-medium shadow-sm hover:shadow-md hover:scale-105"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Learn About Calculations
+                </Button>
+                <Button 
+                  onClick={() => router.push("/riskassessment/dashboard/what-if")} 
+                  variant="default" 
+                  size="lg" 
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 rounded-xl px-8 py-3 font-medium shadow-lg hover:shadow-xl hover:scale-105"
+                >
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  What-If Simulator
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Right: Miro Widget (sidebar) */}
-          <aside className="lg:col-span-1">
-            <Card className="sticky top-20">
-              <CardHeader>
-                <CardTitle className="text-lg">Miro: AI Risk Assistant</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Pass numeric values to MiroMoodWidget */}
-                <MiroMoodWidget
-                  overallScore={scores.overallRiskScore}
-                  financialCapacity={scores.financeScore}
-                  healthScore={scores.healthScore}
-                  monthlyExpenses={monthlyExpensesForMiro}
-                />
-              </CardContent>
-            </Card>
+          <aside className="lg:col-span-1 space-y-6">
+            {/* Miro AI Assistant Widget */}
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }}>
+              <Card className="sticky top-20 border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-indigo-50/30 dark:from-gray-800 dark:to-indigo-900/10">
+                <CardHeader className="border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-900/20 dark:to-purple-900/20">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-xl">
+                      <Brain className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <span className="text-slate-800 dark:text-slate-200">
+                      Miro: AI Risk Assistant
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {/* Pass numeric values to MiroMoodWidget */}
+                  <MiroMoodWidget
+                    overallScore={scores.overallRiskScore}
+                    financialCapacity={scores.financeScore}
+                    healthScore={scores.healthScore}
+                    monthlyExpenses={monthlyExpensesForMiro}
+                  />
+                </CardContent>
+              </Card>
+            </motion.div>
+            
+            {/* ESG Widget or Prompt to Take Test */}
+            {!esgSkipped && esgScores ? (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }} 
+                animate={{ opacity: showESGWidget ? 1 : 0, x: showESGWidget ? 0 : 20 }}
+                transition={{ duration: 0.8, delay: 0.8 }}
+              >
+                <ESGWidget scores={esgScores} isVisible={showESGWidget} />
+              </motion.div>
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }} 
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.8 }}
+              >
+                <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-green-50/30 dark:from-gray-800 dark:to-green-900/10">
+                  <CardHeader className="border-b border-green-100 dark:border-green-900/20 bg-gradient-to-r from-green-50/50 to-emerald-50/50 dark:from-green-900/20 dark:to-emerald-900/20 p-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-3">
+                      <div className="p-2 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl">
+                        <Leaf className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      </div>
+                      <span className="text-gray-800 dark:text-gray-200">ESG Impact Test</span>
+                    </CardTitle>
+                  </CardHeader>
+                  
+                  <CardContent className="p-6 text-center">
+                    <div className="space-y-4">
+                      {/* Plant Image */}
+                      <div className="w-full flex items-center justify-center">
+                        <img src="/plant.svg" alt="Growing plant" className="h-20 object-contain opacity-60" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                          Take the ESG Test
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                          Discover your Environmental, Social & Governance impact score. It hardly takes a minute!
+                        </p>
+                      </div>
+
+                      <Button 
+                        onClick={() => { setEsgSkipped(false); sessionStorage.setItem("esgSkipped", "false"); setShowESGTest(true) }}
+                        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-2 px-4 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                      >
+                        <Leaf className="h-4 w-4 mr-2" />
+                        Take Test Now
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
           </aside>
         </div>
       </div>
+      
+      {/* ESG Test Popup */}
+      {showESGTest && (
+        <ESGScore onComplete={handleESGComplete} onClose={handleESGClose} />
+      )}
     </div>
   )
 }

@@ -1,0 +1,907 @@
+"use client"
+
+import React, { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { ArrowLeft, Brain, TrendingUp, Clock, Shield, Coins } from "lucide-react"
+import MiroMoodWidget from "@/components/MiroMoodWidget"
+
+// Finance Form Interface
+interface FinanceFormData {
+  Age: number
+  Gender: string
+  Education_Level: string
+  Marital_Status: string
+  Income: number
+  Credit_Score: number
+  Loan_Amount: number
+  Loan_Purpose: string
+  Employment_Status: string
+  Years_at_Current_Job: number
+  Payment_History: string
+  Debt_to_Income_Ratio: number
+  Assets_Value: number
+  Number_of_Dependents: number
+  Previous_Defaults: number
+  Marital_Status_Change: number
+}
+
+// Health Form Interface
+interface HealthFormData {
+  male: number
+  age: number
+  education: number
+  currentSmoker: number
+  cigsPerDay: number
+  BPMeds: number
+  prevalentStroke: number
+  prevalentHyp: number
+  diabetes: number
+  totChol: number
+  sysBP: number
+  diaBP: number
+  BMI: number
+  heartRate: number
+  glucose: number
+}
+
+interface ESGScores {
+  e: number
+  s: number
+  g: number
+  total: number
+  breakdown: Record<string, number>
+}
+
+interface DashboardData {
+  financeResult: any
+  healthResult: any
+  financeForm: FinanceFormData
+  healthForm: HealthFormData
+  // /<-/ include ESG scores if available
+  esg?: ESGScores
+  // /<-/
+}
+
+interface ScoreData {
+  healthScore: number
+  financeScore: number
+  timeHorizonScore: number
+  overallRiskScore: number
+  healthClassification: string
+  financeClassification: string
+  timeHorizonInterpretation: string
+  overallRiskInterpretation: string
+}
+
+export default function Dashboard() {
+  const router = useRouter()
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [scores, setScores] = useState<ScoreData | null>(null)
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    health: string
+    finance: string
+    timeHorizon: string
+    overall: string
+  } | null>(null)
+  // /<-/ ESG local state for rendering convenience
+  const [esg, setEsg] = useState<ESGScores | null>(null)
+  // /<-/
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Check if we're in the browser environment
+    if (typeof window !== "undefined") {
+      const data = localStorage.getItem("dashboardData")
+      if (data) {
+        try {
+          const parsedData = JSON.parse(data)
+          console.log("Dashboard data loaded:", parsedData)
+          setDashboardData(parsedData)
+          // /<-/ set ESG if present
+          if (parsedData.esg) setEsg(parsedData.esg)
+          // /<-/
+          calculateScores(parsedData)
+        } catch (error) {
+          console.error("Error parsing dashboard data:", error)
+          router.push("/")
+        }
+      } else {
+        console.warn("No dashboard data found in localStorage")
+        router.push("/")
+      }
+    } else {
+      // If not in browser, redirect
+      router.push("/")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ----------- Financial and Health Risk calculations (copied & preserved) -----------
+  const calculateFinancialRiskScore = (financeForm: FinanceFormData) => {
+    try {
+      if (!financeForm) {
+        console.warn("No finance form data available")
+        return 0.5
+      }
+
+      let riskScore = 0
+      let totalWeight = 0
+
+      // Credit Score (25%)
+      if (typeof financeForm.Credit_Score === "number" && financeForm.Credit_Score > 0) {
+        const creditWeight = 0.25
+        let creditRisk = 0
+        if (financeForm.Credit_Score >= 750) creditRisk = 0.1
+        else if (financeForm.Credit_Score >= 700) creditRisk = 0.2
+        else if (financeForm.Credit_Score >= 650) creditRisk = 0.4
+        else if (financeForm.Credit_Score >= 600) creditRisk = 0.6
+        else creditRisk = 0.8
+
+        riskScore += creditRisk * creditWeight
+        totalWeight += creditWeight
+      }
+
+      // Debt-to-Income Ratio (20%)
+      if (typeof financeForm.Debt_to_Income_Ratio === "number" && financeForm.Debt_to_Income_Ratio >= 0) {
+        const dtiWeight = 0.2
+        let dtiRisk = 0
+        // /<-/ Treat DTI as a ratio (e.g., 0.25 for 25%), not a percentage. Previously dividing by 100 made it 0.0025.
+        const dti = financeForm.Debt_to_Income_Ratio
+        if (dti <= 0.2) dtiRisk = 0.1
+        else if (dti <= 0.36) dtiRisk = 0.3
+        else if (dti <= 0.5) dtiRisk = 0.6
+        else dtiRisk = 0.9
+        // /<-/
+
+        riskScore += dtiRisk * dtiWeight
+        totalWeight += dtiWeight
+      }
+
+      // Payment History (20%)
+      if (financeForm.Payment_History && typeof financeForm.Payment_History === "string") {
+        const paymentWeight = 0.2
+        let paymentRisk = 0
+        const history = financeForm.Payment_History.toLowerCase()
+        if (history.includes("excellent") || history.includes("perfect")) paymentRisk = 0.1
+        else if (history.includes("good") || history.includes("very good")) paymentRisk = 0.2
+        else if (history.includes("average") || history.includes("fair") || history.includes("satisfactory")) paymentRisk = 0.5
+        else if (history.includes("poor") || history.includes("bad")) paymentRisk = 0.8
+        else paymentRisk = 0.4
+
+        riskScore += paymentRisk * paymentWeight
+        totalWeight += paymentWeight
+      }
+
+      // Previous Defaults (15%)
+      if (typeof financeForm.Previous_Defaults === "number" && financeForm.Previous_Defaults >= 0) {
+        const defaultWeight = 0.15
+        let defaultRisk = 0
+        if (financeForm.Previous_Defaults === 0) defaultRisk = 0.1
+        else if (financeForm.Previous_Defaults === 1) defaultRisk = 0.4
+        else if (financeForm.Previous_Defaults === 2) defaultRisk = 0.7
+        else defaultRisk = 0.9
+
+        riskScore += defaultRisk * defaultWeight
+        totalWeight += defaultWeight
+      }
+
+      // Employment Status (10%)
+      if (financeForm.Employment_Status && typeof financeForm.Employment_Status === "string") {
+        const empWeight = 0.1
+        let empRisk = 0
+        const status = financeForm.Employment_Status.toLowerCase()
+        if (status.includes("full-time") || status.includes("permanent") || status.includes("employed")) empRisk = 0.1
+        else if (status.includes("part-time")) empRisk = 0.3
+        else if (status.includes("contract") || status.includes("freelance") || status.includes("self-employed")) empRisk = 0.5
+        else if (status.includes("unemployed") || status.includes("retired")) empRisk = 0.9
+        else empRisk = 0.4
+
+        riskScore += empRisk * empWeight
+        totalWeight += empWeight
+      }
+
+      // Years at Current Job (5%)
+      if (typeof financeForm.Years_at_Current_Job === "number" && financeForm.Years_at_Current_Job >= 0) {
+        const jobWeight = 0.05
+        let jobRisk = 0
+        if (financeForm.Years_at_Current_Job >= 5) jobRisk = 0.1
+        else if (financeForm.Years_at_Current_Job >= 2) jobRisk = 0.3
+        else if (financeForm.Years_at_Current_Job >= 1) jobRisk = 0.5
+        else jobRisk = 0.8
+
+        riskScore += jobRisk * jobWeight
+        totalWeight += jobWeight
+      }
+
+      // Income vs Loan Amount Ratio (5%)
+      if (
+        typeof financeForm.Income === "number" &&
+        typeof financeForm.Loan_Amount === "number" &&
+        financeForm.Income > 0 &&
+        financeForm.Loan_Amount > 0
+      ) {
+        const loanWeight = 0.05
+        const loanToIncomeRatio = financeForm.Loan_Amount / financeForm.Income
+        let loanRisk = 0
+        if (loanToIncomeRatio <= 2) loanRisk = 0.1
+        else if (loanToIncomeRatio <= 4) loanRisk = 0.3
+        else if (loanToIncomeRatio <= 6) loanRisk = 0.6
+        else loanRisk = 0.9
+
+        riskScore += loanRisk * loanWeight
+        totalWeight += loanWeight
+      }
+
+      // Assets Value bonus (reduce risk)
+      if (
+        typeof financeForm.Assets_Value === "number" &&
+        financeForm.Assets_Value > 0 &&
+        typeof financeForm.Income === "number" &&
+        financeForm.Income > 0
+      ) {
+        const assetsToIncomeRatio = financeForm.Assets_Value / financeForm.Income
+        if (assetsToIncomeRatio > 1) {
+          const riskReduction = Math.min(0.1, assetsToIncomeRatio * 0.02)
+          riskScore = Math.max(0, riskScore - riskReduction)
+        }
+      }
+
+      if (totalWeight > 0) {
+        riskScore = riskScore / totalWeight
+      } else {
+        return 0.5
+      }
+
+      const finalScore = Math.max(0, Math.min(1, riskScore))
+      return finalScore
+    } catch (error) {
+      console.error("Error in financial risk calculation:", error)
+      return 0.5
+    }
+  }
+
+  const calculateFraminghamRisk = (healthForm: HealthFormData) => {
+    try {
+      if (!healthForm || typeof healthForm.age !== "number" || typeof healthForm.BMI !== "number" || typeof healthForm.sysBP !== "number") {
+        console.warn("Invalid health form data")
+        return 0.1
+      }
+
+      // /<-/ Framingham constants (with intercept) and corrected male L_mean for stability
+      const coefficients = {
+        male: {
+          beta0: -29.799,
+          betaLnAge: 4.884,
+          betaLnBMI: 0.645,
+          betaLnSBP_treated: 2.019,
+          betaLnSBP_untreated: 1.957,
+          betaSmoker: 0.549,
+          betaDiabetes: 0.645,
+          // /<-/ Calibrated L_mean for this feature set (baseline: age 50, BMI 26, SBP 125, non-smoker, non-diabetic)
+          L_mean: 0.865,
+          // /<-/
+          S0: 0.88431,
+        },
+        female: {
+          beta0: -29.067,
+          betaLnAge: 4.276,
+          betaLnBMI: 0.302,
+          betaLnSBP_treated: 2.469,
+          betaLnSBP_untreated: 2.323,
+          betaSmoker: 0.691,
+          betaDiabetes: 0.874,
+          // /<-/ Calibrated L_mean for female baseline (same baseline as above)
+          L_mean: -0.131,
+          // /<-/
+          S0: 0.95012,
+        },
+      }
+      // /<-/
+
+      const isMale = healthForm.male === 1
+      const coeff = isMale ? coefficients.male : coefficients.female
+      const age = Math.max(20, Math.min(100, healthForm.age))
+      const BMI = Math.max(15, Math.min(50, healthForm.BMI))
+      const sysBP = Math.max(80, Math.min(200, healthForm.sysBP))
+
+      const lnAge = Math.log(age)
+      const lnBMI = Math.log(BMI)
+      const lnSBP = Math.log(sysBP)
+      const betaLnSBP = healthForm.BPMeds === 1 ? coeff.betaLnSBP_treated : coeff.betaLnSBP_untreated
+
+      const currentSmoker = healthForm.currentSmoker === 1 ? 1 : 0
+      const diabetes = healthForm.diabetes === 1 ? 1 : 0
+
+      // /<-/ Apply the formula strictly: L = β0 + βlnAge*ln(age) + βlnBMI*ln(BMI) + βlnSBP*ln(SBP) + βsmoker*smoker + βdiabetes*diabetes
+      const L =
+        coeff.beta0 +
+        coeff.betaLnAge * lnAge +
+        coeff.betaLnBMI * lnBMI +
+        betaLnSBP * lnSBP +
+        coeff.betaSmoker * currentSmoker +
+        coeff.betaDiabetes * diabetes
+      // /<-/
+
+      // /<-/ Add safety bounds to prevent memory overflow from extreme exp() values
+      const exponent = L - coeff.L_mean
+      // Clamp exponent to prevent overflow: exp(700) ≈ 10^304, exp(-700) ≈ 0
+      const safeExponent = Math.max(-50, Math.min(50, exponent))
+      const expTerm = Math.exp(safeExponent)
+      
+      // Additional safety: clamp the power term to prevent S0^(huge number)
+      const safePowerTerm = Math.max(0.001, Math.min(1000, expTerm))
+      const p10 = Math.max(0, Math.min(1, 1 - Math.pow(coeff.S0, safePowerTerm)))
+      
+      const finalResult = isNaN(p10) || !isFinite(p10) ? 0.1 : p10
+      console.log(`Health calc debug: L=${L.toFixed(3)}, L_mean=${coeff.L_mean}, exp=${exponent.toFixed(3)}, p10=${finalResult.toFixed(3)}`)
+      return finalResult
+      // /<-/
+    } catch (error) {
+      console.error("Error in Framingham calculation:", error)
+      return 0.1
+    }
+  }
+
+  const calculateScores = async (data: DashboardData) => {
+    try {
+      let healthScore = 0
+      let financeScore = 0
+      let healthClassification = "No Data"
+      let financeClassification = "No Data"
+
+      if (data.healthForm) {
+        // /<-/ Always compute Health using the formula from form inputs (no conditional shortcut)
+        const p10 = calculateFraminghamRisk(data.healthForm)
+        if (!isNaN(p10) && isFinite(p10)) {
+          healthScore = Math.round(100 * (1 - p10))
+          healthClassification = getHealthClassification(p10)
+        }
+        // /<-/
+      } else if (data.healthResult?.probability) {
+        // Fallback only when form data is unavailable
+        const p10 = data.healthResult.probability
+        if (!isNaN(p10) && isFinite(p10)) {
+          healthScore = Math.round(100 * (1 - p10))
+          healthClassification = getHealthClassification(p10)
+        }
+      }
+
+      let FSI = 0.5
+      if (data.financeForm) {
+        FSI = calculateFinancialRiskScore(data.financeForm)
+        if (!isNaN(FSI) && isFinite(FSI)) {
+          financeScore = Math.round(100 * (1 - FSI))
+          financeClassification = getFinanceClassification(FSI)
+        }
+      } else if (data.financeResult?.RiskRating) {
+        if (data.financeResult.RiskRating === "Low") FSI = 0.2
+        else if (data.financeResult.RiskRating === "Medium") FSI = 0.5
+        else if (data.financeResult.RiskRating === "High") FSI = 0.8
+
+        financeScore = Math.round(100 * (1 - FSI))
+        financeClassification = getFinanceClassification(FSI)
+      } else if (data.financeResult && typeof data.financeResult.FSI === "number") {
+        FSI = data.financeResult.FSI
+        if (!isNaN(FSI) && isFinite(FSI)) {
+          financeScore = Math.round(100 * (1 - FSI))
+          financeClassification = getFinanceClassification(FSI)
+        }
+      }
+
+      const healthRiskProb = data.healthForm ? calculateFraminghamRisk(data.healthForm) : 0.1
+      const validHealthRisk = isNaN(healthRiskProb) || !isFinite(healthRiskProb) ? 0.1 : healthRiskProb
+      const validFinanceRisk = isNaN(FSI) || !isFinite(FSI) ? 0.5 : FSI
+
+      const avgRiskProb = (validHealthRisk + validFinanceRisk) / 2
+      const timeHorizonScore = Math.round(100 * (1 - avgRiskProb))
+      const timeHorizonInterpretation = getTimeHorizonInterpretation(timeHorizonScore)
+
+      const validHealthScore = isNaN(healthScore) || !isFinite(healthScore) ? 0 : healthScore
+      const validFinanceScore = isNaN(financeScore) || !isFinite(financeScore) ? 0 : financeScore
+      const validTimeScore = isNaN(timeHorizonScore) || !isFinite(timeHorizonScore) ? 0 : timeHorizonScore
+
+      const overallRiskScore = Math.round(0.4 * validHealthScore + 0.4 * validFinanceScore + 0.2 * validTimeScore)
+      const overallRiskInterpretation = getOverallRiskInterpretation(overallRiskScore)
+
+      const calculatedScores = {
+        healthScore: validHealthScore,
+        financeScore: validFinanceScore,
+        timeHorizonScore: validTimeScore,
+        overallRiskScore,
+        healthClassification,
+        financeClassification,
+        timeHorizonInterpretation,
+        overallRiskInterpretation,
+      }
+
+      setScores(calculatedScores)
+      await generateAIAnalysis(calculatedScores)
+    } catch (error) {
+      console.error("Error calculating scores:", error)
+      setScores({
+        healthScore: 0,
+        financeScore: 0,
+        timeHorizonScore: 0,
+        overallRiskScore: 0,
+        healthClassification: "Error",
+        financeClassification: "Error",
+        timeHorizonInterpretation: "Error",
+        overallRiskInterpretation: "Error",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getHealthClassification = (p10: number) => {
+    if (isNaN(p10) || !isFinite(p10)) return "No Data"
+    if (p10 < 0.05) return "Low Risk"
+    if (p10 < 0.15) return "Medium Risk"
+    return "High Risk"
+  }
+
+  const getFinanceClassification = (fsi: number) => {
+    if (isNaN(fsi) || !isFinite(fsi)) return "No Data"
+    if (fsi < 0.3) return "Low Risk"
+    if (fsi < 0.7) return "Medium Risk"
+    return "High Risk"
+  }
+
+  const getTimeHorizonInterpretation = (score: number) => {
+    if (isNaN(score) || !isFinite(score)) return "No Data"
+    if (score >= 70) return "Long-term safe zone"
+    if (score >= 40) return "Moderate horizon"
+    return "Short horizon"
+  }
+
+  const getOverallRiskInterpretation = (score: number) => {
+    if (isNaN(score) || !isFinite(score)) return "No Data"
+    if (score >= 80) return "Low Risk (Safe)"
+    if (score >= 50) return "Medium Risk"
+    return "High Risk"
+  }
+
+  const generateAIAnalysis = async (scores: ScoreData) => {
+    try {
+      const analyses = await Promise.all([
+        generateSingleAnalysis(`health score of ${scores.healthScore} (classification: ${scores.healthClassification})`),
+        generateSingleAnalysis(`finance score of ${scores.financeScore} (classification: ${scores.financeClassification})`),
+        generateSingleAnalysis(`time horizon score of ${scores.timeHorizonScore} (${scores.timeHorizonInterpretation})`),
+        generateSingleAnalysis(`overall risk score of ${scores.overallRiskScore} (${scores.overallRiskInterpretation})`),
+      ])
+
+      setAiAnalysis({
+        health: analyses[0],
+        finance: analyses[1],
+        timeHorizon: analyses[2],
+        overall: analyses[3],
+      })
+    } catch (error) {
+      console.error("Error generating AI analysis:", error)
+      setAiAnalysis({
+        health: "Analysis unavailable",
+        finance: "Analysis unavailable",
+        timeHorizon: "Analysis unavailable",
+        overall: "Analysis unavailable",
+      })
+    }
+  }
+
+  const generateSingleAnalysis = async (scoreDescription: string) => {
+    try {
+      const response = await fetch("/riskassessment/api/gemini-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `Provide a short analysis (1-2 lines) of a ${scoreDescription}. Be concise and actionable.`,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate analysis")
+      const data = await response.json()
+      return data.analysis || "Analysis unavailable"
+    } catch (error) {
+      return "Analysis unavailable"
+    }
+  }
+
+  const getScoreColor = (score: number) => {
+    if (isNaN(score) || !isFinite(score)) return "text-gray-500"
+    if (score >= 80) return "text-green-600"
+    if (score >= 50) return "text-yellow-600"
+    return "text-red-600"
+  }
+
+  const getProgressColor = (score: number) => {
+    if (isNaN(score) || !isFinite(score)) return "bg-gray-500"
+    if (score >= 80) return "bg-green-500"
+    if (score >= 50) return "bg-yellow-500"
+    return "bg-red-500"
+  }
+
+  // /<-/ ESG helpers
+  const esgColor = (score: number) => (score >= 70 ? "text-green-600" : score >= 40 ? "text-yellow-600" : "text-red-600")
+  const esgMood = (score: number) => (score >= 80 ? "😊" : score >= 60 ? "🙂" : score >= 40 ? "😐" : "☹️")
+  // /<-/
+
+  if (loading || !scores) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-lg">Calculating your risk scores...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // monthlyExpenses for Miro: prefer finance form Income (monthly) if available, fallback to 50000
+  const monthlyExpensesForMiro = dashboardData?.financeForm?.Income ?? 50000
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-4 py-8">
+{/* Header */}
+<div className="grid grid-cols-3 items-center mb-8">
+  {/* left: back button */}
+  <div className="justify-self-start">
+    <Button variant="ghost" onClick={() => router.push("/")} className="flex items-center gap-2">
+      <ArrowLeft className="h-4 w-4" />
+      Back to Assessment
+    </Button>
+  </div>
+
+  {/* center: title (perfectly centered) */}
+  <div className="justify-self-center">
+    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+      Risk Dashboard
+    </h1>
+  </div>
+
+  {/* right: spacer (keeps title centered) */}
+  <div className="justify-self-end" />
+</div>
+
+
+        {/* MAIN: left (scores) + right (Miro widget) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Left: Scores (spans 2 columns on large screens) */}
+          <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 items-stretch">
+              {/* Health Score */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                  <Shield className="h-5 w-5 text-green-600" />
+                  {/* /<-/ Rename to Health Score */}
+                  Health Score
+                  {/* /<-/ */}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-3xl font-bold ${getScoreColor(scores.healthScore)}`}>
+                      {scores.healthScore}
+                    </span>
+                    <Badge variant="outline">{scores.healthClassification}</Badge>
+                  </div>
+                  <Progress value={scores.healthScore} className="h-2 mt-3" />
+                </div>
+
+                {aiAnalysis?.health &&
+ !aiAnalysis.health.toLowerCase().includes("unknown") &&
+ !aiAnalysis.health.toLowerCase().includes("unavailable") &&
+ !aiAnalysis.health.toLowerCase().includes("n/a") && (
+  <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.health}</p>
+)}
+
+              </CardContent>
+            </Card>
+          </motion.div>
+
+              {/* Finance Score */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                <Card className="relative overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <TrendingUp className="h-5 w-5 text-blue-600" />
+                      {/* /<-/ Rename to Financial Score */}
+                      Financial Score
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-3xl font-bold ${getScoreColor(scores.financeScore)}`}>{scores.financeScore}</span>
+                        <Badge variant="outline">{scores.financeClassification}</Badge>
+                      </div>
+                      <Progress value={scores.financeScore} className="h-2" />
+                      {aiAnalysis?.finance &&
+ !aiAnalysis.finance.toLowerCase().includes("unknown") &&
+ !aiAnalysis.finance.toLowerCase().includes("unavailable") &&
+ !aiAnalysis.finance.toLowerCase().includes("n/a") && (
+  <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.finance}</p>
+)}
+
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Time Horizon */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <Card className="relative overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Clock className="h-5 w-5 text-purple-600" />
+                      Time Horizon
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-3xl font-bold ${getScoreColor(scores.timeHorizonScore)}`}>{scores.timeHorizonScore}</span>
+                        <Badge variant="outline">{scores.timeHorizonInterpretation}</Badge>
+                      </div>
+                      <Progress value={scores.timeHorizonScore} className="h-2" />
+                      {aiAnalysis?.timeHorizon &&
+ !aiAnalysis.timeHorizon.toLowerCase().includes("unknown") &&
+ !aiAnalysis.timeHorizon.toLowerCase().includes("unavailable") && (
+    <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.timeHorizon}</p>
+)}
+
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Overall Risk */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                <Card className="relative overflow-hidden border-2 border-primary">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Brain className="h-5 w-5 text-primary" />
+                      Overall Risk
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-3xl font-bold ${getScoreColor(scores.overallRiskScore)}`}>{scores.overallRiskScore}</span>
+                        <Badge variant="default">{scores.overallRiskInterpretation}</Badge>
+                      </div>
+                      <Progress value={scores.overallRiskScore} className="h-2" />
+                      {aiAnalysis?.overall &&
+ !aiAnalysis.overall.toLowerCase().includes("unknown") &&
+ !aiAnalysis.overall.toLowerCase().includes("unavailable") &&
+ !aiAnalysis.overall.toLowerCase().includes("n/a") && (
+  <p className="text-sm text-gray-600 dark:text-gray-400">{aiAnalysis.overall}</p>
+)}
+
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
+
+            {/* Detailed Information Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Health Details */}
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-green-600" />
+                      {/* /<-/ Rename to Health Details */}
+                      Health Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Risk Assessment</span>
+                        <span className={`text-sm font-bold ${getScoreColor(scores.healthScore)}`}>{scores.healthScore}/100</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Classification</span>
+                        <Badge variant="outline">{scores.healthClassification}</Badge>
+                      </div>
+
+                      {dashboardData?.healthForm && (
+                        <div className="text-xs text-gray-500 border-t pt-3">
+                          <p><strong>Based on:</strong></p>
+                          <ul className="mt-1 space-y-1">
+                            <li>• Age: {dashboardData.healthForm.age} years</li>
+                            <li>• BMI: {dashboardData.healthForm.BMI}</li>
+                            <li>• Blood Pressure: {dashboardData.healthForm.sysBP}/{dashboardData.healthForm.diaBP}</li>
+                            <li>• Smoking: {dashboardData.healthForm.currentSmoker ? "Yes" : "No"}</li>
+                            <li>• Diabetes: {dashboardData.healthForm.diabetes ? "Yes" : "No"}</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Finance Details */}
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-blue-600" />
+                      {/* /<-/ Rename to Financial Details */}
+                      Financial Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Risk Assessment</span>
+                        <span className={`text-sm font-bold ${getScoreColor(scores.financeScore)}`}>{scores.financeScore}/100</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Classification</span>
+                        <Badge variant="outline">{scores.financeClassification}</Badge>
+                      </div>
+
+                      {dashboardData?.financeForm && (
+                        <div className="text-xs text-gray-500 border-t pt-3">
+                          <p><strong>Based on:</strong></p>
+                          <ul className="mt-1 space-y-1">
+                            <li>• Credit Score: {dashboardData.financeForm.Credit_Score}</li>
+                            {/* /<-/ Show DTI as percent */}
+                            <li>• DTI Ratio: {(dashboardData.financeForm.Debt_to_Income_Ratio * 100).toFixed(1)}%</li>
+                            {/* /<-/ */}
+                            <li>• Employment: {dashboardData.financeForm.Employment_Status}</li>
+                            <li>• Payment History: {dashboardData.financeForm.Payment_History}</li>
+                            <li>• Previous Defaults: {dashboardData.financeForm.Previous_Defaults}</li>
+                            <li>• Years at Job: {dashboardData.financeForm.Years_at_Current_Job}</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
+
+            {/* Risk Factors Summary */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-purple-600" />
+                    Risk Assessment Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <div className={`text-4xl font-bold mb-2 ${getScoreColor(scores.healthScore)}`}>{scores.healthScore}%</div>
+                      <p className="text-sm text-gray-600">Health Safety Score</p>
+                      <p className="text-xs text-gray-500 mt-1">Based on cardiovascular risk factors</p>
+                    </div>
+
+                    <div className="text-center">
+                      <div className={`text-4xl font-bold mb-2 ${getScoreColor(scores.financeScore)}`}>{scores.financeScore}%</div>
+                      <p className="text-sm text-gray-600">Financial Stability Score</p>
+                      <p className="text-xs text-gray-500 mt-1">Based on creditworthiness and income stability</p>
+                    </div>
+
+                    <div className="text-center">
+                      <div className={`text-4xl font-bold mb-2 ${getScoreColor(scores.overallRiskScore)}`}>{scores.overallRiskScore}%</div>
+                      <p className="text-sm text-gray-600">Overall Risk Score</p>
+                      <p className="text-xs text-gray-500 mt-1">Combined health and financial assessment</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <h4 className="font-semibold mb-2">Understanding Your Scores:</h4>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                      <p>• <span className="text-green-600 font-medium">80-100:</span> Low risk - Excellent financial and health profile</p>
+                      <p>• <span className="text-yellow-600 font-medium">50-79:</span> Medium risk - Some areas need attention</p>
+                      <p>• <span className="text-red-600 font-medium">0-49:</span> High risk - Consider immediate improvements</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Know More Button */}
+            <div className="text-center space-y-3">
+              <Button onClick={() => router.push("/riskassessment/know-more")} variant="outline" size="lg" className="bg-white/50 backdrop-blur hover:bg-white/80 transition-all duration-300">
+                Know More About These Calculations
+              </Button>
+              <Button onClick={() => router.push("/riskassessment/dashboard/what-if")} variant="default" size="lg" className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all duration-300">
+                What-If Simulator
+              </Button>
+            </div>
+          </div>
+
+          {/* Right: Sidebar widgets */}
+          <aside className="lg:col-span-1 space-y-6">
+            {/* /<-/ ESG Widget Card */}
+            <Card className="sticky top-20">
+              <CardHeader>
+                <CardTitle className="text-lg">ESG Score</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {esg ? (
+                  <div className="space-y-4">
+                    {/* Circular meter using conic-gradient */}
+                    <div className="flex items-center justify-between">
+                      <div
+                        className="relative w-24 h-24 rounded-full"
+                        style={{
+                          background: `conic-gradient(#22c55e ${esg.total * 3.6}deg, #e5e7eb 0deg)`,
+                        }}
+                      >
+                        <div className="absolute inset-2 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center">
+                          <span className={`text-2xl font-bold ${esgColor(esg.total)}`}>{esg.total}</span>
+                        </div>
+                      </div>
+                      <div className="text-3xl" title="Mood">{esgMood(esg.total)}</div>
+                      {/* Plant grows with score */}
+                      <div className="origin-bottom" style={{ transform: `scale(${0.8 + esg.total / 120})` }}>
+                        <span className="text-4xl">🌱</span>
+                      </div>
+                    </div>
+
+                    {/* Mini bars E/S/G */}
+                    <div className="space-y-2">
+                      {([
+                        ["E", esg.e, "bg-green-500"],
+                        ["S", esg.s, "bg-blue-500"],
+                        ["G", esg.g, "bg-purple-500"],
+                      ] as const).map(([label, val, color]) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className="w-6 text-sm font-medium">{label}</span>
+                          <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded">
+                            <div className={`h-2 ${color} rounded`} style={{ width: `${val}%` }} />
+                          </div>
+                          <span className="w-10 text-right text-sm">{val}%</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-xs text-gray-500">Higher is better. Improve by taking public transport, investing in ESG funds, and preferring transparent products.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Take a 1-minute quiz to compute your ESG score.</p>
+                    <Button onClick={() => router.push("/riskassessment/esg")}>Take ESG Test</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            {/* /<-/ */}
+
+            <Card className="sticky top-[26rem]">
+              <CardHeader>
+                <CardTitle className="text-lg">Miro: AI Risk Assistant</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Pass numeric values to MiroMoodWidget */}
+                <MiroMoodWidget
+                  overallScore={scores.overallRiskScore}
+                  financialCapacity={scores.financeScore}
+                  healthScore={scores.healthScore}
+                  monthlyExpenses={monthlyExpensesForMiro}
+                />
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
+

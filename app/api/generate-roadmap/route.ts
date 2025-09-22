@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface RoadmapRequest {
   goal: string;
@@ -17,6 +18,23 @@ interface RoadmapResponse {
   suggestions: string[];
 }
 
+// Helper function to convert timeframe to days
+function getDaysFromTimeframe(timeframe: string): number {
+  const lower = timeframe.toLowerCase();
+  
+  // Extract number from timeframe
+  const numbers = timeframe.match(/\d+/g);
+  const num = numbers ? parseInt(numbers[0]) : 30;
+  
+  if (lower.includes('day')) return num;
+  if (lower.includes('week')) return num * 7;
+  if (lower.includes('month')) return num * 30;
+  if (lower.includes('year')) return num * 365;
+  
+  // Default to treating number as days
+  return num;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { goal, timeframe }: RoadmapRequest = await request.json();
@@ -28,51 +46,102 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mock AI response - in a real implementation, you would integrate with an AI service
-    // like OpenAI GPT, Google Gemini, or another AI API
-    const mockRoadmap: RoadmapResponse = {
-      title: `${goal} - ${timeframe} Journey`,
-      steps: [
-        {
-          title: "Research & Planning",
-          description: "Understand the fundamentals and create a detailed action plan",
-          days: 7
-        },
-        {
-          title: "Foundation Building",
-          description: "Establish the basic knowledge and skills needed",
-          days: 14
-        },
-        {
-          title: "Implementation Phase",
-          description: "Start executing your plan with consistent daily actions",
-          days: 21
-        },
-        {
-          title: "Review & Optimize",
-          description: "Evaluate progress and make necessary adjustments",
-          days: 7
-        },
-        {
-          title: "Final Push",
-          description: "Complete the remaining tasks and achieve your goal",
-          days: 14
-        }
-      ],
-      suggestions: [
-        "Set aside dedicated time each day for your goal",
-        "Track your progress regularly to stay motivated",
-        "Don't be afraid to adjust your plan if needed",
-        "Celebrate small wins along the way",
-        "Find an accountability partner or community for support",
-        "Break down large tasks into smaller, manageable steps"
-      ]
-    };
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+      return NextResponse.json(
+        { error: 'Google Gemini API key not configured. Please add GOOGLE_GEMINI_API_KEY to your .env.local file.' },
+        { status: 500 }
+      );
+    }
 
-    // Simulate API processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    return NextResponse.json(mockRoadmap);
+    const prompt = `Create a personalized, actionable roadmap for someone who wants to "${goal}" in "${timeframe}". 
+
+Provide a JSON response with this exact structure:
+{
+  "title": "Your [Timeframe] [Goal] Journey",
+  "steps": [
+    {
+      "title": "Step name (be specific and actionable)",
+      "description": "Detailed, specific description with actual actions to take. Be concrete and practical, not generic.",
+      "days": number_of_days_for_this_step
+    }
+  ],
+  "suggestions": ["Specific, actionable tip 1", "Specific tip 2", "etc"]
+}
+
+Requirements:
+- Create 3-6 steps maximum to avoid excessive scrolling
+- Each step should have specific, concrete actions (like "Consult your doctor, take baseline measurements")
+- Days should total roughly to the timeframe mentioned (convert weeks/months to days)
+- Be domain-specific (fitness, coding, language learning, etc.) - not generic
+- Focus on measurable, actionable tasks
+- Descriptions should be 1-2 sentences max
+- Provide 4-6 practical suggestions
+
+Example for "get fit in 3 months":
+- Step 1: "Assess Your Fitness Level" - "Consult your doctor, take baseline measurements (weight, body fat, etc.), and identify which areas need improvement"
+- Step 2: "Create a Workout Plan" - "Develop a balanced routine with cardio (3-4 days/week), strength training (2-3 days/week), and flexibility exercises"
+
+Make it specific to their goal, not a template.`;
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    
+    // Clean up the response to ensure it's valid JSON
+    let cleanedResponse = responseText.trim();
+    if (cleanedResponse.startsWith('```json')) {
+      cleanedResponse = cleanedResponse.replace(/```json\n?/g, '').replace(/```$/g, '');
+    }
+    if (cleanedResponse.startsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/```\n?/g, '').replace(/```$/g, '');
+    }
+    
+    try {
+      const roadmapData = JSON.parse(cleanedResponse);
+      return NextResponse.json(roadmapData);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      console.error('Raw Response:', responseText);
+      
+      // Fallback response if parsing fails
+      const fallbackRoadmap: RoadmapResponse = {
+        title: `Your ${timeframe} ${goal} Journey`,
+        steps: [
+          {
+            title: "Assessment & Planning",
+            description: "Evaluate current state and create a specific action plan tailored to your goal.",
+            days: Math.ceil(getDaysFromTimeframe(timeframe) * 0.15)
+          },
+          {
+            title: "Foundation Phase",
+            description: "Build the essential skills and habits needed for success.",
+            days: Math.ceil(getDaysFromTimeframe(timeframe) * 0.35)
+          },
+          {
+            title: "Implementation & Growth",
+            description: "Execute your plan consistently and track progress regularly.",
+            days: Math.ceil(getDaysFromTimeframe(timeframe) * 0.4)
+          },
+          {
+            title: "Optimization & Mastery",
+            description: "Refine your approach and achieve your target goal.",
+            days: Math.ceil(getDaysFromTimeframe(timeframe) * 0.1)
+          }
+        ],
+        suggestions: [
+          "Set specific daily targets and track them consistently",
+          "Create accountability by sharing progress with others",
+          "Adjust your approach based on what works best for you",
+          "Celebrate small wins to maintain motivation",
+          "Prepare for setbacks and have recovery strategies"
+        ]
+      };
+      
+      return NextResponse.json(fallbackRoadmap);
+    }
     
   } catch (error) {
     console.error('Error generating roadmap:', error);
